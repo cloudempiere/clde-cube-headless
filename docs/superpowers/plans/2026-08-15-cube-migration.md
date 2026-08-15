@@ -10,6 +10,21 @@
 
 **Spec:** `docs/ADR-001-cube-semantic-layer.md`
 
+## Status — partially executed, 2026-08-16
+
+Tasks 1-8 have been run against a full local copy of production (16 tenants,
+11.2M order lines). 15 entities compile and query correctly; the Sales view
+returns identical totals across a four-way join; a bounded incremental
+pre-aggregation serves queries from Cube Store.
+
+Running it corrected this plan in five places, all folded into Global
+Constraints below. See `docs/ADR-001`, "Verified constraints", and commits
+7ada8f9, 4e87fcb, 88b7ead, bbf05cd.
+
+Three defects were found in the 2022 baseline, none introduced by the
+migration: a hardcoded `limit 100` inside the OrderFacts SQL, four hardcoded
+`sk_SK` literals, and two translation joins that should have been LEFT JOIN.
+
 ## Source baseline
 
 **Port from `./schema/` in this repository.** It is April 2022, template 0.28.19,
@@ -31,7 +46,14 @@ archived. Its two files with later modification dates (`Warehouse.js`,
 - **Preserve the language mechanism.** The 2022 source resolves translations via `${SECURITY_CONTEXT.ad_language.filter('ds.ad_language')}` joined to `rv_ad_reference_trl`. `SECURITY_CONTEXT.x.filter()` is removed in v1.x; carry the behaviour forward as a `COMPILE_CONTEXT` reference or a query-time parameter. Do not silently drop it — it is the Slovak/English implementation.
 - **No measure ships unverified.** Every ported measure passes `scripts/validate.mjs` against the original SQL before the task is complete.
 - **Deny-by-default isolation.** A security context without `ad_client_id` must return **zero rows**, never all rows. This is the defect being fixed; a test asserts it.
+- **YAML for any cube carrying an access policy — which is every fact cube.** Verified: `access_policy` templating (`{ securityContext.x }`) works only in YAML. In JavaScript the template passes through uninterpolated, producing `WHERE x = '{ securityContext.x }'` — **zero rows, silently, no error**. JS is fine for cubes without policies.
+- **`access_policy` uses `group:`, not `role:`.** The compiler rejects `role:`.
 - **YAML, snake_case.** Cube 1.x model syntax: `primary_key`, `public`, `many_to_one` — not `primaryKey`, `shown`, `belongsTo`.
+- **Views are structurally required, not curation.** A dimension or measure may not reference another cube (45 such members exist). Without a view there is no legal way to expose a joined cube's dimensions, so a view ships with the first fact cube, not at the end.
+- **Imports resolve relative to the model root.** `model/cubes/x.js` importing `./helpers` finds `model/helpers.js`, not a sibling.
+- **Cube scans `model/` recursively.** Parked or deferred files must live outside it.
+- **Bound every partitioned pre-aggregation.** 23 orders carry typo'd years (0006 instead of 2006), so an unbounded monthly partition would attempt 24,240 partitions instead of ~294. Use `build_range_start`/`build_range_end` and a date guard in the cube SQL.
+- **`refresh_key.update_window` accepts only second/minute/hour/day/week.** `3 month` is rejected; use `90 day`.
 - **`host.docker.internal`, never `localhost`,** for database host inside containers on macOS.
 - **Filter `docstatus`.** Completed and Closed (`CO`, `CL`) only, unless a measure deliberately includes drafts. Unfiltered document status is the most common cause of a dashboard disagreeing with the ERP.
 - **Filter `isactive = 'Y'`** and exclude `ad_client_id = 0` (System rows) in every cube.
@@ -1005,6 +1027,13 @@ git commit -m "fix(cube): replace fail-open tenant filter with deny-by-default a
 ---
 
 ### Task 7: Build the Sales and Receivables views
+
+> **Sequencing correction.** Views turned out to be structurally required, not
+> a later curation step: Cube 1.x forbids a dimension or measure from
+> referencing another cube, so without a view there is no legal way to expose a
+> joined cube's dimensions at all. In practice a view must ship **with** its
+> first fact cube — Task 4 or 5, not here. Retained at this position only so
+> the surrounding task numbering stays stable.
 
 **Files:**
 - Create: `cube/model/views/sales.yml`

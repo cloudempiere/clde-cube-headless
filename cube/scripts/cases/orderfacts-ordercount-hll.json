@@ -1,0 +1,10 @@
+{
+  "name": "Orderfacts.ordercount within HLL tolerance (count_distinct is approximate)",
+  "cubeQuery": {
+    "measures": ["Orderfacts.ordercount"],
+    "timeDimensions": [{ "dimension": "Orderfacts.dateordered", "granularity": "month",
+                         "dateRange": ["2026-01-01", "2026-08-31"] }]
+  },
+  "referenceSql": "SELECT count(DISTINCT o.c_order_id) AS value FROM c_order o JOIN c_orderline ol ON ol.c_order_id=o.c_order_id WHERE o.processed='Y' AND o.isproposal='N' AND o.dateordered >= DATE '2026-01-01' AND o.dateordered < DATE '2026-09-01'",
+  "tolerance": 0.01
+}

@@ -1,0 +1,7 @@
+{
+  "name": "Reference.count is filtered to one language by access_policy",
+  "cubeQuery": { "measures": ["Reference.count"] },
+  "securityContext": { "ad_client_id": 1000026, "ad_language": "sk_SK", "roles": ["tenant_user"] },
+  "referenceSql": "SELECT count(*) AS value FROM ad_ref_list rl JOIN ad_ref_list_trl t ON t.ad_ref_list_id=rl.ad_ref_list_id AND t.isactive='Y' WHERE rl.isactive='Y' AND t.ad_language='sk_SK'",
+  "tolerance": 0
+}

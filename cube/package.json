@@ -1,0 +1,11 @@
+{
+  "name": "clde-cube-headless",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node scripts/validate.mjs",
+    "migrate": "node scripts/migrate-js.mjs",
+    "test:isolation": "node scripts/test-language-fanout.mjs"
+  },
+  "dependencies": { "pg": "^8.13.0" }
+}

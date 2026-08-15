@@ -2,3 +2,4 @@
 .cubestore/
 node_modules/
 cubes.deferred/
+package-lock.json

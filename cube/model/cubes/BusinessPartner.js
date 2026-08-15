@@ -227,7 +227,11 @@ cube(`Businesspartner`, {
       type: `rollup`,
 
       measures: [Businesspartner.count],
-      dimensions: [Client.ad_client_id, Businesspartner.isCustomer, Businesspartner.salesrep],
+      // salesrep was stripped in migration (it referenced the User cube) and is
+      // now exposed via a view. A pre-aggregation may not reference it: the
+      // model still COMPILES but any query on this cube fails at runtime with
+      // "Cannot resolve: salesrep".
+      dimensions: [Client.ad_client_id, Businesspartner.isCustomer],
       timeDimension: Businesspartner.c_bpartner_created,
       granularity: `day`,
       refresh_key: {

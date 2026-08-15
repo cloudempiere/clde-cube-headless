@@ -1,0 +1,31 @@
+views:
+  - name: Inventory
+    title: Inventory & Warehouse
+    description: >
+      Warehouse movements with locator, product and partner context, and
+      document status resolved in the user's language. Restores the six
+      dimensions removed from Warehouse during migration.
+    cubes:
+      - join_path: Warehouse
+        includes: "*"
+      - join_path: Warehouse.Warehouselayout
+        prefix: true
+        includes: [name, m_warehouse_name]
+      - join_path: Warehouse.Product
+        prefix: true
+        includes: [name, value]
+      - join_path: Warehouse.Product.Productcategory
+        prefix: true
+        includes: [name]
+      - join_path: Warehouse.Businesspartner
+        prefix: true
+        includes: [c_bpartner_name, value]
+      - join_path: Warehouse.User
+        prefix: true
+        includes: [name]
+      - join_path: Warehouse.DocumentStatus
+        prefix: true
+        includes: [name]
+      - join_path: Warehouse.DocBaseType
+        prefix: true
+        includes: [name]

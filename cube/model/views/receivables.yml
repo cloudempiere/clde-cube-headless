@@ -1,0 +1,26 @@
+views:
+  - name: Receivables
+    title: Receivables
+    description: >
+      Open items with partner, organisation and sales-rep context, plus ageing
+      bands resolved in the user's language. Restores the four dimensions
+      removed from Openitem during migration - Cube 1.x forbids a member
+      referencing another cube.
+    cubes:
+      - join_path: Openitem
+        includes: "*"
+      - join_path: Openitem.Organization
+        prefix: true
+        includes: [ad_org_name]
+      - join_path: Openitem.Businesspartner
+        prefix: true
+        includes: [c_bpartner_name, value, city, region]
+      - join_path: Openitem.User
+        prefix: true
+        includes: [name]
+      - join_path: Openitem.Bankaccount
+        prefix: true
+        includes: [name, accountno]
+      - join_path: Openitem.OpenItemAging
+        prefix: true
+        includes: [name]

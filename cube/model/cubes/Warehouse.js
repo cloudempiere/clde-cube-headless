@@ -208,6 +208,24 @@ cube(`Warehouse`, {
     sql_alias: `wms`,
 
     joins: {
+    // Restores the join paths for members stripped during migration; the
+    // labels are exposed through the Inventory view.
+    Warehouselayout: {
+      relationship: `many_to_one`,
+      sql: `${CUBE}.m_locator_id = ${Warehouselayout}.m_locator_id`
+    },
+    Product: {
+      relationship: `many_to_one`,
+      sql: `${CUBE}.m_product_id = ${Product}.m_product_id`
+    },
+    Businesspartner: {
+      relationship: `many_to_one`,
+      sql: `${CUBE}.c_bpartner_id = ${Businesspartner}.c_bpartner_id`
+    },
+    User: {
+      relationship: `many_to_one`,
+      sql: `${CUBE}.ad_user_id = ${User}.ad_user_id`
+    },
     // Translated labels now come from domain-scoped Reference cubes,
     // whose access_policy filters ad_language from the security context.
     DocumentStatus: {

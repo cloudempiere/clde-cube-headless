@@ -1,0 +1,21 @@
+views:
+  - name: CashFlow
+    title: Cash Flow
+    description: >
+      Cash flow plan with partner and organisation context, and account and
+      cash-flow types resolved in the user's language.
+    cubes:
+      - join_path: Cashflowplan
+        includes: "*"
+      - join_path: Cashflowplan.Organization
+        prefix: true
+        includes: [ad_org_name]
+      - join_path: Cashflowplan.Businesspartner
+        prefix: true
+        includes: [c_bpartner_name, value]
+      - join_path: Cashflowplan.AccountType
+        prefix: true
+        includes: [name]
+      - join_path: Cashflowplan.CashFlowType
+        prefix: true
+        includes: [name]

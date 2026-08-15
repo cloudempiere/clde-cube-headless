@@ -1,0 +1,25 @@
+views:
+  - name: Invoices
+    title: Invoices
+    description: >
+      Invoiced revenue with partner, product and organisation context. Credit
+      memos are sign-flipped in the fact cube, so sums are net. Restores the
+      five dimensions removed from Invoicefacts during migration.
+    cubes:
+      - join_path: Invoicefacts
+        includes: "*"
+      - join_path: Invoicefacts.Organization
+        prefix: true
+        includes: [ad_org_name]
+      - join_path: Invoicefacts.Businesspartner
+        prefix: true
+        includes: [c_bpartner_name, value, city, region, c_bpartner_abcanalysisgroup]
+      - join_path: Invoicefacts.User
+        prefix: true
+        includes: [name]
+      - join_path: Invoicefacts.Product
+        prefix: true
+        includes: [name, value, iscatalog]
+      - join_path: Invoicefacts.Product.Productcategory
+        prefix: true
+        includes: [name]

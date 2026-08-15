@@ -1,0 +1,135 @@
+# Domain-scoped views of Reference.
+#
+# A cube can only join another cube once, so four inline rv_ad_reference_trl
+# joins in Orderfacts cannot become four joins to a single Reference cube.
+# Each lookup domain therefore gets its own cube, filtered to its
+# ad_reference_id, inheriting the language access_policy.
+#
+# This is the pattern for all 24 translated joins across the model.
+cubes:
+  - name: DeliveryRule
+    title: Delivery Rule
+    sql_alias: dlvr
+    sql: >
+      SELECT rl.ad_ref_list_id, rl.value, rl.name AS name_base,
+             t.ad_language, t.name AS name
+      FROM ad_ref_list rl
+      LEFT JOIN ad_ref_list_trl t ON t.ad_ref_list_id = rl.ad_ref_list_id AND t.isactive='Y'
+      WHERE rl.isactive='Y' AND rl.ad_reference_id = 151
+    dimensions:
+      - name: id
+        sql: "ad_ref_list_id || '-' || COALESCE(ad_language,'--')"
+        type: string
+        primary_key: true
+      - name: value
+        sql: value
+        type: string
+      - name: ad_language
+        sql: ad_language
+        type: string
+        public: false
+      - name: name
+        title: Delivery Rule
+        sql: "COALESCE(name, name_base)"
+        type: string
+    measures:
+      - name: count
+        type: count
+    access_policy: &lang_policy
+      - group: tenant_user
+        member_level: { includes: "*" }
+        row_level:
+          filters:
+            - member: ad_language
+              operator: equals
+              values: ["{ securityContext.ad_language }"]
+
+  - name: InvoiceRule
+    title: Invoice Rule
+    sql_alias: invr
+    sql: >
+      SELECT rl.ad_ref_list_id, rl.value, rl.name AS name_base,
+             t.ad_language, t.name AS name
+      FROM ad_ref_list rl
+      LEFT JOIN ad_ref_list_trl t ON t.ad_ref_list_id = rl.ad_ref_list_id AND t.isactive='Y'
+      WHERE rl.isactive='Y' AND rl.ad_reference_id = 150
+    dimensions:
+      - name: id
+        sql: "ad_ref_list_id || '-' || COALESCE(ad_language,'--')"
+        type: string
+        primary_key: true
+      - name: value
+        sql: value
+        type: string
+      - name: ad_language
+        sql: ad_language
+        type: string
+        public: false
+      - name: name
+        title: Invoice Rule
+        sql: "COALESCE(name, name_base)"
+        type: string
+    measures:
+      - name: count
+        type: count
+    access_policy: *lang_policy
+
+  - name: OrderLineStatus
+    title: Order Line Status
+    sql_alias: olst
+    sql: >
+      SELECT rl.ad_ref_list_id, rl.value, rl.name AS name_base,
+             t.ad_language, t.name AS name
+      FROM ad_ref_list rl
+      LEFT JOIN ad_ref_list_trl t ON t.ad_ref_list_id = rl.ad_ref_list_id AND t.isactive='Y'
+      WHERE rl.isactive='Y' AND rl.ad_reference_id = 1000116
+    dimensions:
+      - name: id
+        sql: "ad_ref_list_id || '-' || COALESCE(ad_language,'--')"
+        type: string
+        primary_key: true
+      - name: value
+        sql: value
+        type: string
+      - name: ad_language
+        sql: ad_language
+        type: string
+        public: false
+      - name: name
+        title: Order Line Status
+        sql: "COALESCE(name, name_base)"
+        type: string
+    measures:
+      - name: count
+        type: count
+    access_policy: *lang_policy
+
+  - name: LostSalesReason
+    title: Lost Sales Reason
+    sql_alias: lsr
+    sql: >
+      SELECT rl.ad_ref_list_id, rl.value, rl.name AS name_base,
+             t.ad_language, t.name AS name
+      FROM ad_ref_list rl
+      LEFT JOIN ad_ref_list_trl t ON t.ad_ref_list_id = rl.ad_ref_list_id AND t.isactive='Y'
+      WHERE rl.isactive='Y' AND rl.ad_reference_id = 1000188
+    dimensions:
+      - name: id
+        sql: "ad_ref_list_id || '-' || COALESCE(ad_language,'--')"
+        type: string
+        primary_key: true
+      - name: value
+        sql: value
+        type: string
+      - name: ad_language
+        sql: ad_language
+        type: string
+        public: false
+      - name: name
+        title: Lost Sales Reason
+        sql: "COALESCE(name, name_base)"
+        type: string
+    measures:
+      - name: count
+        type: count
+    access_policy: *lang_policy

@@ -45,11 +45,11 @@ cube(`Orderfacts`, {
       o.driver_id,
       COALESCE(ords.name,'Empty') as order_source_name,
       COALESCE(stat.name,'Empty') as order_status_name,
-      delrule.name as deliveryrule,
+      o.deliveryrule       AS deliveryrule_code,
       o.priorityrule as priority,
-      invrule.name as invoicerule,
-      lost.name as lostsalesreason,
-      linestate.name as orderlinestatus,
+      o.invoicerule        AS invoicerule_code,
+      ol.lostsalesreason   AS lostsalesreason_code,
+      ol.orderlinestatus   AS orderlinestatus_code,
       o.c_bpartner_id,
       ol.m_product_id,
       o.dropship_bpartner_id,
@@ -71,11 +71,6 @@ cube(`Orderfacts`, {
     LEFT JOIN c_ordersource ords ON o.c_ordersource_id = ords.c_ordersource_id
     LEFT JOIN c_orderstatus stat ON o.c_orderstatus_id = stat.c_orderstatus_id
     LEFT JOIN w_store ws ON o.w_store_id = ws.w_store_id
-    
-    LEFT JOIN rv_ad_reference_trl lost ON ol.lostsalesreason = lost.value::bpchar AND lost.ad_reference_id = 1000188::numeric AND lost.ad_language='en_US'
-    LEFT JOIN rv_ad_reference_trl delrule ON o.deliveryrule = delrule.value::bpchar AND delrule.ad_reference_id = 151::numeric AND delrule.ad_language='en_US'
-    LEFT JOIN rv_ad_reference_trl invrule ON o.invoicerule = invrule.value::bpchar AND invrule.ad_reference_id = 150::numeric AND invrule.ad_language='en_US'
-    LEFT JOIN rv_ad_reference_trl linestate ON ol.orderlinestatus = linestate.value::bpchar AND linestate.ad_reference_id = 1000116::numeric AND linestate.ad_language='en_US'
     WHERE 1=1 AND o.processed='Y' AND isProposal ='N'
     -- Guard against date typos: 23 orders carry years like 0006 instead of 2006
     -- (documentno PO/SJ/.../0006). Unbounded, monthly partitioning would try to
@@ -90,6 +85,26 @@ cube(`Orderfacts`, {
 
 
   joins: {
+    // Translated labels come from domain-scoped Reference cubes, whose
+    // access_policy filters ad_language from the security context. Replaces
+    // four inline rv_ad_reference_trl joins that hardcoded a language.
+    DeliveryRule: {
+      relationship: `many_to_one`,
+      sql: `${CUBE}.deliveryrule_code = ${DeliveryRule}.value`
+    },
+    InvoiceRule: {
+      relationship: `many_to_one`,
+      sql: `${CUBE}.invoicerule_code = ${InvoiceRule}.value`
+    },
+    OrderLineStatus: {
+      relationship: `many_to_one`,
+      sql: `${CUBE}.orderlinestatus_code = ${OrderLineStatus}.value`
+    },
+    LostSalesReason: {
+      relationship: `many_to_one`,
+      sql: `${CUBE}.lostsalesreason_code = ${LostSalesReason}.value`
+    },
+
     Client: {
       relationship: `many_to_one`, //THIS CAUSE PREAGREGGATION DOESN'T WORKED WHY ??? Contenxt was empty ? DO NOT CHANGE THIS
       sql: `${CUBE}.ad_client_id = ${Client}.ad_client_id`
@@ -388,7 +403,7 @@ cube(`Orderfacts`, {
 
     deliveryrule: {
       title: `Delivery Rule`,
-      sql: `deliveryrule`,
+      sql: `deliveryrule_code`,
       type: `string`
     },
 
@@ -400,19 +415,19 @@ cube(`Orderfacts`, {
     
     invoicerule: {
       title: `Invoice Rule`,
-      sql: `invoicerule`,
+      sql: `invoicerule_code`,
       type: `string`
     },
 
     lostsalesreason: {
       title: `Lost Sales Reason`,
-      sql: `lostsalesreason`,
+      sql: `lostsalesreason_code`,
       type: `string`
     },
 
     orderlinestatus: {
       title: `Order Line Status`,
-      sql: `orderlinestatus`,
+      sql: `orderlinestatus_code`,
       type: `string`
     },
 

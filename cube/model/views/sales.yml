@@ -50,6 +50,12 @@ views:
           - iscatalog
           - m_product_abcanalysisgroup
 
+      # was Orderfacts.prodcategory - two hops, via Product
+      - join_path: Orderfacts.Product.Productcategory
+        prefix: true
+        includes:
+          - name
+
       # was Orderfacts.organization
       - join_path: Orderfacts.Organization
         prefix: true

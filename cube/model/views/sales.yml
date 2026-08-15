@@ -1,0 +1,57 @@
+views:
+  - name: Sales
+    title: Sales
+    description: >
+      Orders with business partner, product and organisation context.
+      Cube 1.x forbids a fact cube from defining a member that references
+      another cube, so the seven such dimensions removed from Orderfacts
+      during migration are restored here via join_path + prefix.
+      See docs/ADR-001, "Verified constraints".
+
+    cubes:
+      - join_path: Orderfacts
+        includes:
+          - linecount
+          - ordercount
+          - qtyordered
+          - qtydelivered
+          - qtyinvoiced
+          - qtytoinvoice
+          - dateordered
+          - datepromised
+          - orderstatus
+          - ordersource
+          - deliveryrule
+          - issotrx
+          - orderage
+
+      # was Orderfacts.bpartner and .c_bpartner_abcanalysisgroup
+      - join_path: Orderfacts.Businesspartner
+        prefix: true
+        includes:
+          - c_bpartner_name
+          - value
+          - c_bpartner_abcanalysisgroup
+          - city
+          - region
+
+      # was Orderfacts.dropshipname
+      - join_path: Orderfacts.Dropshipcustomers
+        prefix: true
+        includes:
+          - c_bpartner_name
+
+      # was Orderfacts.product, .prodcategory and .iscatalog
+      - join_path: Orderfacts.Product
+        prefix: true
+        includes:
+          - name
+          - value
+          - iscatalog
+          - m_product_abcanalysisgroup
+
+      # was Orderfacts.organization
+      - join_path: Orderfacts.Organization
+        prefix: true
+        includes:
+          - ad_org_name

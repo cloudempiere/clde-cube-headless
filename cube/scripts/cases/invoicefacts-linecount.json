@@ -1,0 +1,11 @@
+{
+  "name": "Invoicefacts.linecount matches source, tenant-scoped",
+  "cubeQuery": {
+    "measures": ["Invoicefacts.linecount"],
+    "timeDimensions": [{ "dimension": "Invoicefacts.dateinvoiced", "granularity": "month",
+                         "dateRange": ["2026-01-01", "2026-08-31"] }]
+  },
+  "securityContext": { "ad_client_id": 1000026, "ad_language": "sk_SK", "roles": ["tenant_user"] },
+  "referenceSql": "SELECT count(*) AS value FROM c_invoice i JOIN c_invoiceline il ON il.c_invoice_id=i.c_invoice_id WHERE i.ad_client_id=1000026 AND i.dateinvoiced >= DATE '2026-01-01' AND i.dateinvoiced < DATE '2026-09-01'",
+  "tolerance": 0
+}

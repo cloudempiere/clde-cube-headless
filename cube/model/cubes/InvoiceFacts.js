@@ -283,6 +283,32 @@ cube(`Invoicefacts`, {
   },
 
   preAggregations: {
+    /**
+     * Bounded incremental rollup, same pattern as Orderfacts.ordersByMonth.
+     *
+     * build_range_end runs a year past CURRENT_DATE: invoices carry dates up to
+     * 2026-12-27, ahead of today, and anything outside the range is simply not
+     * pre-aggregated - it falls through to the source and looks slow rather
+     * than wrong.
+     *
+     * Only additive measures. marginamt/margin/markup are ratios or derive
+     * from them and are not safe to sum across a rollup.
+     */
+    invoicesByMonth: {
+      type: `rollup`,
+      measures: [Invoicefacts.linecount, Invoicefacts.linenetamt, Invoicefacts.linetotalamt, Invoicefacts.qtyinvoiced],
+      dimensions: [Invoicefacts.ad_client_id, Invoicefacts.issotrx],
+      timeDimension: Invoicefacts.dateinvoiced,
+      granularity: `day`,
+      partition_granularity: `month`,
+      build_range_start: { sql: `SELECT DATE '2000-01-01'` },
+      build_range_end:   { sql: `SELECT CURRENT_DATE + INTERVAL '1 year'` },
+      refresh_key: {
+        every: `1 day`,
+        incremental: true,
+        update_window: `90 day`,
+      },
+    },
 
     // countsource: {
     //   type: `rollup`,

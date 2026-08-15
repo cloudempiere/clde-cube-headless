@@ -1,0 +1,11 @@
+{
+  "name": "Invoicefacts.linenetamt matches source, credit memos sign-flipped, tenant-scoped",
+  "cubeQuery": {
+    "measures": ["Invoicefacts.linenetamt"],
+    "timeDimensions": [{ "dimension": "Invoicefacts.dateinvoiced", "granularity": "month",
+                         "dateRange": ["2026-01-01", "2026-08-31"] }]
+  },
+  "securityContext": { "ad_client_id": 1000026, "ad_language": "sk_SK", "roles": ["tenant_user"] },
+  "referenceSql": "SELECT round(sum(CASE WHEN substr(dt.docbasetype,3,1)='C' THEN il.linenetamt*-1 ELSE il.linenetamt END)) AS value FROM c_invoice i JOIN c_invoiceline il ON il.c_invoice_id=i.c_invoice_id JOIN c_doctype dt ON dt.c_doctype_id=i.c_doctype_id WHERE i.ad_client_id=1000026 AND i.dateinvoiced >= DATE '2026-01-01' AND i.dateinvoiced < DATE '2026-09-01'",
+  "tolerance": 0.0001
+}

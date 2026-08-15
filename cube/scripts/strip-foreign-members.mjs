@@ -34,8 +34,10 @@ const SECTIONS = ['dimensions', 'measures'];
  * The interior excludes the header and the closing brace - otherwise the member
  * regex below matches the section itself and comments out every member at once.
  */
-function sectionRange(src, name) {
-  const m = new RegExp(`\\n[ \\t]*${name}:[ \\t]*\\{`).exec(src);
+function sectionRange(src, name, from = 0) {
+  const re = new RegExp(`\\n[ \\t]*${name}:[ \\t]*\\{`, 'g');
+  re.lastIndex = from;
+  const m = re.exec(src);
   if (!m) return null;
   const start = m.index + m[0].length;   // just past the opening brace
   let i = start, depth = 1;
@@ -56,8 +58,12 @@ for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.js'))) {
   let count = 0;
 
   for (const section of SECTIONS) {
-    const range = sectionRange(src, section);
-    if (!range) continue;
+   // A file may define several cubes (LogisticFacts, BusinessPartner, User),
+   // so every occurrence of the section must be scanned, not just the first.
+   let cursor = 0;
+   for (;;) {
+    const range = sectionRange(src, section, cursor);
+    if (!range) break;
     const [start, end] = range;
     const body = src.slice(start, end);
 
@@ -76,6 +82,8 @@ for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.js'))) {
            + commented;
     });
     src = src.slice(0, start) + patched + src.slice(end);
+    cursor = start + patched.length;
+   }
   }
 
   if (count) {

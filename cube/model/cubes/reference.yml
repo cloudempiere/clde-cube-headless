@@ -1,0 +1,69 @@
+cubes:
+  - name: Reference
+    title: Reference Values
+    description: >
+      iDempiere reference list values (AD_Ref_List). One row per code per
+      language; access_policy filters to the user's language, so joining this
+      cube from a fact does NOT multiply rows. Verified 2026-08-15.
+    sql_alias: ref
+
+    # Language is an ordinary dimension - NOT pivoted into columns, and NOT
+    # filtered by COMPILE_CONTEXT. Adding a language means inserting rows,
+    # not editing this file. See docs/ADR-001, "Verified constraints".
+    sql: >
+      SELECT rl.ad_ref_list_id, rl.ad_reference_id, rl.ad_client_id,
+             rl.value, rl.name AS name_base,
+             r.name AS domain_name,
+             t.ad_language, t.name AS name
+      FROM ad_ref_list rl
+      JOIN ad_reference r          ON r.ad_reference_id = rl.ad_reference_id
+      LEFT JOIN ad_ref_list_trl t  ON t.ad_ref_list_id = rl.ad_ref_list_id
+                                  AND t.isactive = 'Y'
+      WHERE rl.isactive = 'Y'
+
+    dimensions:
+      - name: id
+        sql: "ad_ref_list_id || '-' || COALESCE(ad_language,'--')"
+        type: string
+        primary_key: true
+      - name: ad_ref_list_id
+        sql: ad_ref_list_id
+        type: number
+      - name: ad_reference_id
+        title: Domain
+        description: Reference list this value belongs to, e.g. 151 = Delivery Rule
+        sql: ad_reference_id
+        type: number
+      - name: value
+        title: Code
+        description: Stored code, stable across languages
+        sql: value
+        type: string
+      - name: ad_language
+        sql: ad_language
+        type: string
+        public: false
+      - name: name
+        title: Label
+        description: Translated label in the user's language
+        sql: "COALESCE(name, name_base)"
+        type: string
+      - name: domain_name
+        title: Domain Name
+        sql: domain_name
+        type: string
+
+    measures:
+      - name: count
+        title: Reference Values
+        type: count
+
+    access_policy:
+      - group: tenant_user
+        member_level:
+          includes: "*"
+        row_level:
+          filters:
+            - member: ad_language
+              operator: equals
+              values: ["{ securityContext.ad_language }"]

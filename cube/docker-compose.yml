@@ -1,0 +1,10 @@
+services:
+  cube:
+    image: cubejs/cube:latest
+    ports:
+      - "4000:4000"
+      - "15432:15432"
+    env_file: .env
+    volumes:
+      - ./model:/cube/conf/model
+      - ./cube.js:/cube/conf/cube.js

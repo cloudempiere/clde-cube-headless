@@ -1,0 +1,61 @@
+cubes:
+  - name: Uom
+    title: Unit of Measure
+    description: >
+      Units of measure. One row per UOM per language; access_policy filters to
+      the user's language, so joining from a fact does not multiply rows.
+      A Slovak tenant sees 'ks' where the base record says 'Ea'.
+    sql_alias: uom
+
+    sql: >
+      SELECT u.c_uom_id, u.ad_client_id, u.stdprecision,
+             u.uomsymbol AS symbol_base, u.name AS name_base,
+             t.ad_language, t.uomsymbol AS symbol, t.name AS name
+      FROM c_uom u
+      LEFT JOIN c_uom_trl t ON t.c_uom_id = u.c_uom_id AND t.isactive = 'Y'
+      WHERE u.isactive = 'Y' AND u.ad_client_id > 0
+
+    dimensions:
+      - name: id
+        sql: "c_uom_id || '-' || COALESCE(ad_language,'--')"
+        type: string
+        primary_key: true
+      - name: c_uom_id
+        sql: c_uom_id
+        type: number
+      - name: ad_client_id
+        sql: ad_client_id
+        type: number
+        public: false
+      - name: ad_language
+        sql: ad_language
+        type: string
+        public: false
+      - name: symbol
+        title: UOM
+        description: Translated symbol, falling back to the base record
+        sql: "COALESCE(symbol, symbol_base)"
+        type: string
+      - name: name
+        title: UOM Name
+        sql: "COALESCE(name, name_base)"
+        type: string
+      - name: stdprecision
+        title: Precision
+        sql: stdprecision
+        type: number
+
+    measures:
+      - name: count
+        title: Units of Measure
+        type: count
+
+    access_policy:
+      - group: tenant_user
+        member_level:
+          includes: "*"
+        row_level:
+          filters:
+            - member: ad_language
+              operator: equals
+              values: ["{ securityContext.ad_language }"]

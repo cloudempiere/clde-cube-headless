@@ -4,7 +4,7 @@
 
 **Goal:** Stand up Cube Core 1.x locally on macOS, migrate a proven vertical slice of the 2020 model with verified numbers, replace fail-open tenant isolation with deny-by-default access policies, and deploy the result self-hosted.
 
-**Architecture:** A new `cube/` directory alongside the existing `schema/` — nothing is overwritten. Cube Core reads a PostgreSQL read replica (locally, the existing copy on port 5437). Metric definitions live in `cube/model/cubes/*.yml`; the user-facing contract lives in `cube/model/views/*.yml`. Identity stays in iDempiere: `AD_User`/`AD_Role` → JWT claims → `contextToGroups` → `access_policy`. Every ported measure is verified against the original SQL by an automated harness before it is trusted.
+**Architecture:** A new `cube/` directory alongside the existing `schema/` — nothing is overwritten. Cube Core reads a PostgreSQL read replica (locally, the idempiere-dev-db container on port 5433). Metric definitions live in `cube/model/cubes/*.yml`; the user-facing contract lives in `cube/model/views/*.yml`. Identity stays in iDempiere: `AD_User`/`AD_Role` → JWT claims → `contextToGroups` → `access_policy`. Every ported measure is verified against the original SQL by an automated harness before it is trusted.
 
 **Tech Stack:** Cube Core 1.x (`cubejs/cube`, `cubejs/cubestore`), PostgreSQL 15+, Docker Compose, Node 20+ (local: v25.2.1, Docker 29.7.2 confirmed present).
 
@@ -51,7 +51,7 @@ archived. Its two files with later modification dates (`Warehouse.js`,
 
 **Interfaces:**
 - Consumes: nothing
-- Produces: a running Cube API on `localhost:4000`, SQL API on `localhost:15432`, reading the local `cloudempiere_prod` copy on port 5437.
+- Produces: a running Cube API on `localhost:4000`, SQL API on `localhost:15432`, reading the local `cloudempiere_dev` on port 5433.
 
 - [ ] **Step 1: Create the directory and gitignore**
 
@@ -86,10 +86,11 @@ services:
 CUBEJS_DEV_MODE=true
 CUBEJS_DB_TYPE=postgres
 CUBEJS_DB_HOST=host.docker.internal
-CUBEJS_DB_PORT=5437
-CUBEJS_DB_NAME=cloudempiere_prod
-CUBEJS_DB_USER=cubejsrole
+CUBEJS_DB_PORT=5433
+CUBEJS_DB_NAME=cloudempiere_dev
+CUBEJS_DB_USER=cube_readonly
 CUBEJS_DB_PASS=changeme
+CUBEJS_DB_SCHEMA=adempiere
 CUBEJS_API_SECRET=changeme-long-random-string
 CUBEJS_PG_SQL_PORT=15432
 CUBEJS_LOG_LEVEL=info
@@ -212,9 +213,9 @@ async function fromCube(query) {
 async function fromSql(sql) {
   const client = new pg.Client({
     host: process.env.PGHOST ?? 'localhost',
-    port: Number(process.env.PGPORT ?? 5437),
-    database: process.env.PGDATABASE ?? 'cloudempiere_prod',
-    user: process.env.PGUSER ?? 'cubejsrole',
+    port: Number(process.env.PGPORT ?? 5433),
+    database: process.env.PGDATABASE ?? 'cloudempiere_dev',
+    user: process.env.PGUSER ?? 'cube_readonly',
     password: process.env.PGPASSWORD,
   });
   await client.connect();
@@ -962,7 +963,7 @@ Append at the same indentation level as `measures:`:
 
 ```yaml
     access_policy:
-      - role: tenant_user
+      - group: tenant_user
         member_level:
           includes: "*"
         row_level:
@@ -976,7 +977,7 @@ Append at the same indentation level as `measures:`:
 
 ```yaml
     access_policy:
-      - role: tenant_user
+      - group: tenant_user
         member_level:
           includes: "*"
         row_level:
@@ -1316,7 +1317,7 @@ CUBEJS_DEV_MODE=false
 CUBEJS_DB_TYPE=postgres
 CUBEJS_DB_HOST=replica.internal
 CUBEJS_DB_PORT=5432
-CUBEJS_DB_NAME=cloudempiere_prod
+CUBEJS_DB_NAME=cloudempiere_dev
 CUBEJS_DB_USER=cube_readonly
 CUBEJS_DB_PASS=
 CUBEJS_API_SECRET=

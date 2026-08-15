@@ -109,6 +109,77 @@ Because the baseline is 0.28 rather than 0.19, the remaining work is smaller:
 | `schema/*.js` → `model/cubes/*.yml`, `model/views/*.yml` | all |
 | Replace fail-open filter with deny-by-default policy | `cube.js` |
 
+
+### Verified constraints from the local migration (2026-08-15)
+
+Established by running Cube 1.7.19 against a full production copy
+(16 tenants, 11.2M order lines) - not from documentation.
+
+**1. `access_policy` templating works only in YAML, not JavaScript.**
+
+The same policy in each format produces:
+
+```
+JS model     params: ['{ securityContext.ad_language }']   <- literal, not resolved
+YAML model   params: ['sk_SK']                             <- resolved
+```
+
+In JS the template passes through uninterpolated, yielding
+`WHERE x = '{ securityContext.x }'`, which matches **zero rows, silently**.
+
+Consequence: **every cube carrying an access policy must be YAML.** That is
+every fact cube, because tenant isolation is an access policy. The mechanical
+JS conversion is still useful to get cubes compiling, but the security layer
+forces YAML. This overrides any "JS first" sequencing.
+
+**2. `access_policy` uses `group:`, not `role:`.**
+
+The compiler rejects `role:` with *"must contain at least one of [group, groups]"*.
+Earlier revisions of this ADR and the plan specified `role:`; both are corrected.
+
+**3. Imports resolve relative to the model root, not the importing file.**
+
+`model/cubes/x.js` importing `./helpers` resolves to `model/helpers.js`, not a
+sibling. The error - *"Required import for helpers.js is not found"* - does not
+hint at this.
+
+**4. A member may not reference a foreign cube.** 45 occurrences across the
+model. The documented replacement is a view with `join_path` + `prefix`. Joins
+*must* reference foreign cubes, so any automated fix must scope itself to
+`dimensions` and `measures` only.
+
+**5. Translations: language as a dimension, filtered by access policy.**
+
+iDempiere holds translations in 127 `_trl` tables; the model uses one,
+`rv_ad_reference_trl`, across 24 joins and 11 domains, in 5 installed languages.
+
+Joining without a language predicate multiplies the fact table 5x - measured at
+11,239,592 order lines becoming 56,197,976. Filtering by language via
+`COMPILE_CONTEXT` avoids that but compiles a separate model *and* a separate
+pre-aggregation set per language: 16 tenants x 5 languages = 80 variants.
+
+Pivoting translations into columns avoids both but hardcodes the language list
+into SQL, so a sixth language means editing every cube.
+
+**The resolution: keep `ad_language` as an ordinary dimension on a lookup cube
+and let `access_policy` filter it.** Verified: the policy applies on join, so a
+joining fact sees one row per code and there is no fan-out. Unlimited languages,
+nothing hardcoded, one compiled model, one rollup set.
+
+`ad_language` must therefore NOT appear in `contextToAppId`.
+
+**6. Defects found in the 2022 baseline, not introduced by the migration.**
+
+- `schema/OrderFacts.js:81` contains a hardcoded `limit 100` inside the cube SQL,
+  from commit `0862521` *"experimental, huge data transfer limit"*. Every
+  Orderfacts query silently returned 100 rows' worth of data against 11.2M lines.
+  Not present in the 2020 repo.
+- Four `ad_language='sk_SK'` literals in the same file, while sibling cubes use
+  the language context - i18n was already inconsistent.
+- Two translation joins were `JOIN` rather than `LEFT JOIN`, silently dropping
+  order lines with no translation. Correcting them recovered 12 rows.
+
+
 ### Constraints
 
 Nine are given; one is a choice.

@@ -1,0 +1,4 @@
+.env
+.cubestore/
+node_modules/
+cubes.deferred/

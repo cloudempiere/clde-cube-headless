@@ -76,7 +76,12 @@ cube(`Orderfacts`, {
     LEFT JOIN rv_ad_reference_trl delrule ON o.deliveryrule = delrule.value::bpchar AND delrule.ad_reference_id = 151::numeric AND delrule.ad_language='en_US'
     LEFT JOIN rv_ad_reference_trl invrule ON o.invoicerule = invrule.value::bpchar AND invrule.ad_reference_id = 150::numeric AND invrule.ad_language='en_US'
     LEFT JOIN rv_ad_reference_trl linestate ON ol.orderlinestatus = linestate.value::bpchar AND linestate.ad_reference_id = 1000116::numeric AND linestate.ad_language='en_US'
-    WHERE 1=1 AND o.processed='Y' AND isProposal ='N' AND ${FILTER_PARAMS.Orderfacts.date.filter('o.dateordered')}
+    WHERE 1=1 AND o.processed='Y' AND isProposal ='N'
+    -- Guard against date typos: 23 orders carry years like 0006 instead of 2006
+    -- (documentno PO/SJ/.../0006). Unbounded, monthly partitioning would try to
+    -- build 24,240 partitions instead of 294. See docs/ADR-001.
+    AND o.dateordered >= DATE '2000-01-01'
+    AND o.dateordered <  now() + INTERVAL '2 years' AND ${FILTER_PARAMS.Orderfacts.date.filter('o.dateordered')}
   `,
 
   // refresh_key: {
@@ -454,20 +459,34 @@ cube(`Orderfacts`, {
   },
 
   //https://statsbot.co/blog/high-performance-data-analytics-with-cubejs-pre-aggregations/
-  preAggregations: {  
-    linecnt: {
+  preAggregations: {
+    /**
+     * Incremental, partitioned monthly. Only recent partitions rebuild; the
+     * historical ones are built once and never touched again.
+     *
+     * build_range_start/end BOUND the partitions. Without them Cube derives the
+     * range from the data, and 23 rows with typo'd years (0006 instead of 2006)
+     * would produce 24,240 monthly partitions instead of ~294. The cube SQL now
+     * also filters those rows out; this is belt and braces.
+     *
+     * refresh_key.updateWindow limits the incremental rebuild to the last
+     * 3 months, so a daily refresh touches 3 partitions, not 294.
+     */
+    ordersByMonth: {
       type: `rollup`,
-
-      measures: [Orderfacts.linecount],
-      dimensions: [Client.ad_client_id, Orderfacts.custrep, Orderfacts.issotrx],
+      measures: [Orderfacts.linecount, Orderfacts.ordercount, Orderfacts.qtyordered],
+      dimensions: [Orderfacts.ad_client_id, Orderfacts.issotrx, Orderfacts.orderstatus],
       timeDimension: Orderfacts.dateordered,
-      partition_granularity: `month`,
       granularity: `day`,
+      partition_granularity: `month`,
+      build_range_start: { sql: `SELECT DATE '2000-01-01'` },
+      build_range_end:   { sql: `SELECT CURRENT_DATE` },
       refresh_key: {
         every: `1 day`,
         incremental: true,
+        update_window: `90 day`,
       },
-      // scheduledRefresh: true
-    }, 
-  }
+    },
+  },
+
 });

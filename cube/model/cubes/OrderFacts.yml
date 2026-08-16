@@ -300,6 +300,32 @@ cubes:
         sql: "{CUBE}.issotrx = 'Y'"
       - name: Purchase
         sql: "{CUBE}.issotrx = 'N'"
+
+    # Tenant isolation, stated on the cube itself.
+    #
+    # This is why the model moved to YAML at all: the "{ securityContext.x }"
+    # templating below works ONLY in YAML. In JavaScript it is passed through
+    # literally, producing WHERE ad_client_id = '{ securityContext.ad_client_id }',
+    # which matches nothing and raises no error.
+    #
+    # No ", 0" here, unlike the global queryRewrite. Orders are transactional and
+    # carry no ad_client_id = 0 rows, so the tenant alone is the correct rule;
+    # the 0 exists for reference and master data that ships system-owned rows.
+    #
+    # This does NOT replace queryRewrite yet. Both filters apply and agree, so
+    # the policy is additive while it is being proven. Removing the global
+    # backstop is a separate decision: a cube with no policy would then be
+    # entirely unprotected, and that failure is silent.
+    access_policy:
+      - group: tenant_user
+        member_level:
+          includes: "*"
+        row_level:
+          filters:
+            - member: ad_client_id
+              operator: equals
+              values: ["{ securityContext.ad_client_id }"]
+
     pre_aggregations:
       - name: ordersByMonth
         type: rollup
@@ -308,7 +334,15 @@ cubes:
           - Orderfacts.ordercount
           - Orderfacts.qtyordered
         dimensions:
+          # BOTH tenant members must be present while both filters exist.
+          # queryRewrite filters Client.ad_client_id; the cube's access_policy
+          # filters Orderfacts.ad_client_id. A rollup only matches when EVERY
+          # filtered member is one of its dimensions, so listing just one sends
+          # the query to the 11.2M-row source - silently, with correct numbers.
+          # Adding the policy without this line reintroduced exactly the defect
+          # that started this work.
           - Client.ad_client_id
+          - Orderfacts.ad_client_id
           - Orderfacts.issotrx
           - Orderfacts.orderstatus
         time_dimension: Orderfacts.dateordered

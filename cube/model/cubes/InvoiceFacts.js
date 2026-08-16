@@ -35,10 +35,7 @@ cube(`Invoicefacts`, {
       il.discount,
       COALESCE (pt.name, 'Empty') as c_paymentterm_name,
       i.docstatus,
-      CASE 
-        WHEN dt.issotrx='Y' THEN 'true'
-        ELSE 'false'
-      END as issotrx
+      dt.issotrx
     FROM c_invoice i
     JOIN c_invoiceline il ON il.c_invoice_id = i.c_invoice_id
     JOIN c_doctype dt ON i.c_doctype_id = dt.c_doctype_id
@@ -276,10 +273,10 @@ cube(`Invoicefacts`, {
 
   segments: {
     Sales: {
-      sql: `${CUBE}.issotrx = 'true'`
+      sql: `${CUBE}.issotrx = 'Y'`
     },
     Purchase: {
-      sql: `${CUBE}.issotrx = 'false'`
+      sql: `${CUBE}.issotrx = 'N'`
     }
   },
 

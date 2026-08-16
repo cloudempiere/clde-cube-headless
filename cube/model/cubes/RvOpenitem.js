@@ -17,10 +17,7 @@ cube(`Openitem`, {
     i.documentno,
     i.c_invoice_id,
     i.c_bpartner_id,
-    CASE 
-      WHEN i.issotrx='Y' THEN 'true'
-      ELSE 'false'
-    END as issotrx,
+    i.issotrx,
     i.dateinvoiced,
     i.dateacct,
     daysbetween(ips.duedate,i.dateinvoiced) AS netdays,
@@ -120,10 +117,10 @@ AND i.dateinvoiced >= DATE '2000-01-01' AND i.dateinvoiced < CURRENT_DATE + INTE
 
   segments: {
     OpenItemsSales: {
-      sql: `${CUBE}.issotrx = 'true'`
+      sql: `${CUBE}.issotrx = 'Y'`
     },
     OpenItemsPurchase: {
-      sql: `${CUBE}.issotrx = 'false'`
+      sql: `${CUBE}.issotrx = 'N'`
     }
   },
 

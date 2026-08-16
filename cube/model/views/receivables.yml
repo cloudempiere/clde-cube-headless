@@ -14,7 +14,11 @@ views:
         includes: [ad_org_name]
       - join_path: Openitem.Businesspartner
         prefix: true
-        includes: [c_bpartner_name, value, city, region]
+        # city/region intentionally absent: Openitem does not carry
+        # c_bpartner_location_id, so there is no address the document
+        # actually used. Sourcing one from the partner would report an
+        # arbitrary address as if it were the invoice's.
+        includes: [c_bpartner_name, value]
       - join_path: Openitem.User
         prefix: true
         includes: [name]

@@ -40,6 +40,7 @@ cubes:
         END AS QtyInvoiced,
         il.m_product_id,
         i.c_bpartner_id,
+      i.c_bpartner_location_id,
         i.documentno,
         COALESCE(il.AltProductName,ch.name) AS chargename,
         i.salesrep_id,
@@ -59,6 +60,9 @@ cubes:
     description: All Sales invoice related information
     sql_alias: inv
     joins:
+      - name: Bpartnerlocation
+        relationship: many_to_one
+        sql: "{CUBE}.c_bpartner_location_id = {Bpartnerlocation}.c_bpartner_location_id"
       - name: Client
         relationship: many_to_one
         sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"

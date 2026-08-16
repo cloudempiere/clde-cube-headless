@@ -61,6 +61,7 @@ cubes:
       ol.lostsalesreason   AS lostsalesreason_code,
       ol.orderlinestatus   AS orderlinestatus_code,
       o.c_bpartner_id,
+      o.c_bpartner_location_id,
       ol.m_product_id,
       o.dropship_bpartner_id,
       COALESCE(ol.AltProductName,ch.name) AS chargename,
@@ -88,6 +89,9 @@ cubes:
       AND o.dateordered >= DATE '2000-01-01'
       AND o.dateordered <  now() + INTERVAL '2 years' AND {FILTER_PARAMS.Orderfacts.date.filter('o.dateordered')}
     joins:
+      - name: Bpartnerlocation
+        relationship: many_to_one
+        sql: "{CUBE}.c_bpartner_location_id = {Bpartnerlocation}.c_bpartner_location_id"
       - name: DeliveryRule
         relationship: many_to_one
         sql: "{CUBE}.deliveryrule_code = {DeliveryRule}.value"

@@ -1,0 +1,31 @@
+{
+  "name": "Receivables view does not multiply count across its joins",
+  "note": "Fan-out coverage for a VIEW. A view introduces joins the underlying cube never performs, and if a join_path is not one-to-one the measure inflates silently - an inflated count still looks like a plausible count. Grouping by a dimension sourced from the JOINED cube and summing must reproduce the cube's own total exactly.\n\nThe grouping dimension is a STRING so validate.mjs picks the measure as the first numeric value per row. The reference SQL is reused verbatim from openitem-count.json, so this case tests the view, not a fresh transcription of the business rule.",
+  "cubeQuery": {
+    "measures": [
+      "Receivables.count"
+    ],
+    "dimensions": [
+      "Receivables.Businesspartner_c_bpartner_name"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Receivables.dateinvoiced",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_invoice i LEFT JOIN c_invoicepayschedule ips ON i.c_invoice_id = ips.c_invoice_id AND i.ispaid ='N' LEFT JOIN C_DunningLevel dl ON dl.C_DunningLevel_ID=i.C_DunningLevel_ID LEFT JOIN c_acctschema ac ON ac.ad_client_id = i.ad_client_id AND (ac.ad_orgonly_id = i.ad_org_id) JOIN c_doctype dt ON i.c_doctype_id = dt.c_doctype_id JOIN c_paymentterm p ON i.c_paymentterm_id = p.c_paymentterm_id WHERE i.ispaid ='N' AND i.ad_client_id=1000026 AND i.dateinvoiced >= DATE '2026-01-01' AND i.dateinvoiced < DATE '2026-09-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

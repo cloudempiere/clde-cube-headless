@@ -32,8 +32,6 @@ views:
           - c_bpartner_name
           - value
           - c_bpartner_abcanalysisgroup
-          - city
-          - region
 
       # was Orderfacts.dropshipname
       - join_path: Orderfacts.Dropshipcustomers
@@ -61,3 +59,8 @@ views:
         prefix: true
         includes:
           - ad_org_name
+      # Address comes from the location the DOCUMENT used, not an arbitrary one
+      # belonging to the partner. Orderfacts carries c_bpartner_location_id.
+      - join_path: Orderfacts.Bpartnerlocation
+        prefix: true
+        includes: [city, region, country, c_bpartner_location_name]

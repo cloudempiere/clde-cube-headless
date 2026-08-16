@@ -1,0 +1,31 @@
+{
+  "name": "Invoices view does not multiply linecount across its joins",
+  "note": "Fan-out coverage for a VIEW. A view introduces joins the underlying cube never performs, and if a join_path is not one-to-one the measure inflates silently - an inflated count still looks like a plausible count. Grouping by a dimension sourced from the JOINED cube and summing must reproduce the cube's own total exactly.\n\nThe grouping dimension is a STRING so validate.mjs picks the measure as the first numeric value per row. The reference SQL is reused verbatim from invoicefacts-linecount.json, so this case tests the view, not a fresh transcription of the business rule.",
+  "cubeQuery": {
+    "measures": [
+      "Invoices.linecount"
+    ],
+    "dimensions": [
+      "Invoices.Businesspartner_c_bpartner_name"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Invoices.dateinvoiced",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_invoice i JOIN c_invoiceline il ON il.c_invoice_id=i.c_invoice_id WHERE i.ad_client_id=1000026 AND i.dateinvoiced >= DATE '2026-01-01' AND i.dateinvoiced < DATE '2026-09-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

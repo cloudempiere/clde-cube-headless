@@ -36,39 +36,10 @@ cube(`Businesspartner`, {
       bpg.value AS bpartner_group_search_key,
       bpg.name AS bpartner_group_name,
       bpg.description AS bpartner_group_description,
-      c.name AS contactname,
-      c.email,
-      l.postal,
-      l.city,
-      l.address1,
-      l.address2,
-      l.address3,
-      COALESCE(r.name, l.regionname) AS locationregionname,
-      cc.name AS countryname,
-      CASE
-        WHEN bpl.isbillto = 'Y'::bpchar THEN 'BT'::text
-        WHEN bpl.isshipto = 'Y'::bpchar THEN 'ST'::text
-        WHEN bpl.ispayfrom = 'Y'::bpchar THEN 'PF'::text
-        WHEN bpl.isremitto = 'Y'::bpchar THEN 'RT'::text
-        ELSE NULL::text
-      END AS addresstype,
-      r.c_country_id AS c_region_c_country_id,
-      c.department,
       bp.salesrep_id,
-      bp.abcanalysisgroup as c_bpartner_abcanalysisgroup,
-      l.latitude,
-      l.longitude,
-      bpl.c_bpartner_location_id,
-      bpl.name as c_bpartner_location_name,
-      sr.name as c_shippingregion_name
+      bp.abcanalysisgroup as c_bpartner_abcanalysisgroup
       FROM c_bpartner bp
-      LEFT JOIN c_bpartner_location bpl ON bp.c_bpartner_id = bpl.c_bpartner_id
       LEFT JOIN c_bp_group bpg ON bp.c_bp_group_id = bpg.c_bp_group_id
-      LEFT JOIN ad_user c ON bp.c_bpartner_id = c.c_bpartner_id 
-      LEFT JOIN c_location l ON bpl.c_location_id = l.c_location_id
-      LEFT JOIN c_region r ON l.c_region_id = r.c_region_id
-      LEFT JOIN c_country cc ON l.c_country_id = cc.c_country_id
-      LEFT JOIN c_shippingregion sr ON (sr.c_shippingregion_id=bpl.c_shippingregion_id)
       WHERE 1=1
     `,
 
@@ -133,19 +104,7 @@ cube(`Businesspartner`, {
       public: true
     },
 
-    c_bpartner_location_id: {
-      sql: `c_bpartner_location_id`,
-      type: `number`,
-      format: `id`,
-      // primary_key: true,
-      public: false
-    },
 
-    c_bpartner_location_name: {
-      title: `Bpartner Location Name`,
-      sql: `c_bpartner_location_name`,
-      type: `string`
-    },
 
     value: {
       title: `Value`,
@@ -153,17 +112,7 @@ cube(`Businesspartner`, {
       type: `string`
     },
 
-    region: {
-      title: `Location Region`,
-      sql: `locationregionname`,
-      type: `string`
-    },
 
-    contactperson: {
-      title: `Contact`,
-      sql: `contactname`,
-      type: `string`
-    },
 
     bpgroup: {
       title: `BP Group`,
@@ -197,23 +146,8 @@ cube(`Businesspartner`, {
       type: `string`
     },
 
-    longitude: {
-      title: `Longitude`,
-      sql: `longitude`,
-      type: `number`
-    },
 
-    latitude: {
-      title: `Latitude`,
-      sql: `latitude`,
-      type: `number`
-    },
 
-    city: {
-      title: `City`,
-      sql: `city`,
-      type: `string`
-    }
 
 
   },
@@ -245,8 +179,11 @@ cube(`Businesspartner`, {
       type: `rollup`,
 
       measures: [Businesspartner.count],
-      dimensions: [Client.ad_client_id, Businesspartner.ad_org_id, Businesspartner.c_bpartner_id, Businesspartner.c_bpartner_name, 
-        Businesspartner.value, Businesspartner.region, Businesspartner.contactperson, Businesspartner.bpgroup],
+      // region and contactperson dropped: they belonged to the location and
+      // contact grain and now live on Bpartnerlocation. A pre-aggregation
+      // naming a removed member breaks the whole CUBE, not just the rollup.
+      dimensions: [Client.ad_client_id, Businesspartner.ad_org_id, Businesspartner.c_bpartner_id, Businesspartner.c_bpartner_name,
+        Businesspartner.value, Businesspartner.bpgroup],
       timeDimension: Businesspartner.c_bpartner_created,
       granularity: `day`,
       // No incremental: these are master-data cubes (c_bpartner 128,930 rows,

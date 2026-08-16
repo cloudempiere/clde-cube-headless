@@ -1,0 +1,31 @@
+{
+  "name": "CashFlow view does not multiply count across its joins, tenant 1000014",
+  "note": "Fan-out coverage for a VIEW. A view introduces joins the underlying cube never performs, and if a join_path is not one-to-one the measure inflates silently - an inflated count still looks like a plausible count. Grouping by a dimension sourced from the JOINED cube and summing must reproduce the cube's own total exactly.\n\nThe grouping dimension is a STRING so validate.mjs picks the measure as the first numeric value per row. The reference SQL is reused verbatim from cashflowplan-count.json, so this case tests the view, not a fresh transcription of the business rule. Tenant 1000014 because 1000026 has no cash plan lines at all.",
+  "cubeQuery": {
+    "measures": [
+      "CashFlow.count"
+    ],
+    "dimensions": [
+      "CashFlow.Businesspartner_c_bpartner_name"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "CashFlow.Date",
+        "granularity": "month",
+        "dateRange": [
+          "2023-01-01",
+          "2023-12-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT count(cpl.c_cashplanline_id) AS value FROM c_cashplanline cpl JOIN c_cashplan cp ON cpl.c_cashplan_id = cp.c_cashplan_id LEFT JOIN c_invoice i ON i.c_cashplanline_id = cpl.c_cashplanline_id LEFT JOIN m_product p ON cpl.m_product_id = p.m_product_id LEFT JOIN c_charge ch ON cpl.c_charge_id = ch.c_charge_id LEFT JOIN c_chargetype cht ON ch.c_chargetype_id = cht.c_chargetype_id LEFT JOIN c_acctschema sch ON cpl.ad_org_id = sch.ad_orgonly_id LEFT JOIN AD_OrgInfo oi ON oi.AD_Org_ID=sch.ad_orgonly_id LEFT JOIN c_bankaccount ba ON COALESCE (i.C_BankAccount_ID, oi.C_BankAccount_ID) = ba.c_bankaccount_id LEFT JOIN c_charge_acct cha ON cha.c_charge_id = ch.c_charge_id AND sch.c_acctschema_id = cha.c_acctschema_id LEFT JOIN m_product_acct pha ON pha.m_product_id = p.m_product_id AND sch.c_acctschema_id = pha.c_acctschema_id LEFT JOIN c_validcombination vc ON vc.c_acctschema_id = cha.c_acctschema_id AND vc.c_validcombination_id = cha.ch_expense_acct LEFT JOIN c_validcombination vc2 ON vc2.c_acctschema_id = pha.c_acctschema_id AND vc2.c_validcombination_id = pha.P_Revenue_Acct LEFT JOIN c_elementvalue ev ON vc.account_id = ev.c_elementvalue_id LEFT JOIN c_elementvalue ev2 ON vc2.account_id = ev2.c_elementvalue_id LEFT JOIN C_Activity act ON act.C_Activity_ID = COALESCE(cpl.C_Activity_ID, cp.C_Activity_ID) WHERE cpl.isactive='Y' AND cp.ad_client_id=1000014 AND cpl.DateTrx >= DATE '2023-01-01' AND cpl.DateTrx < DATE '2024-01-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000014,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

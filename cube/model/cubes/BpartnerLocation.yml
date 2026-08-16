@@ -1,0 +1,137 @@
+# Business partner ADDRESSES, one row per c_bpartner_location.
+#
+# Split out of Businesspartner, which used to LEFT JOIN c_bpartner_location and
+# ad_user while declaring c_bpartner_id as its primary key. The real grain was
+# partner x location x contact - 128,930 partners emitting 260,117 rows, one
+# partner producing 4,970 - and Cube trusts a declared key, so any many_to_one
+# join multiplied the fact. The Invoices view returned 14,549,714 lines against
+# a true 114,960. No error; an inflated invoice count looks like an invoice
+# count.
+#
+# WHY A SEPARATE CUBE RATHER THAN ONE ADDRESS PER PARTNER
+#
+# c_invoice, c_order and m_inout each carry c_bpartner_location_id: the document
+# records which address it used. Collapsing to a single address per partner
+# would have produced the right count with the WRONG address - the billTo one
+# for every document, including those shipped elsewhere. Facts join the location
+# they actually referenced.
+#
+# A fact without c_bpartner_location_id (c_cashplanline has none) simply cannot
+# join this cube, which is the honest outcome: there is no address to report.
+
+cubes:
+  - name: Bpartnerlocation
+    title: Business Partner Address
+    description: >
+      One row per business partner address. Join from a fact on its own
+      c_bpartner_location_id so the address reported is the one the document
+      used, not an arbitrary address belonging to the partner.
+    sql_alias: bploc
+    sql: >
+      SELECT
+        bpl.c_bpartner_location_id,
+        bpl.ad_client_id,
+        bpl.ad_org_id,
+        bpl.c_bpartner_id,
+        bpl.name AS c_bpartner_location_name,
+        bpl.isbillto,
+        bpl.isshipto,
+        bpl.ispayfrom,
+        bpl.isremitto,
+        l.postal,
+        l.city,
+        l.address1,
+        l.address2,
+        l.address3,
+        l.latitude,
+        l.longitude,
+        COALESCE(r.name, l.regionname) AS locationregionname,
+        cc.name AS countryname,
+        sr.name AS c_shippingregion_name
+      FROM c_bpartner_location bpl
+      LEFT JOIN c_location l ON bpl.c_location_id = l.c_location_id
+      LEFT JOIN c_region r ON l.c_region_id = r.c_region_id
+      LEFT JOIN c_country cc ON l.c_country_id = cc.c_country_id
+      LEFT JOIN c_shippingregion sr ON sr.c_shippingregion_id = bpl.c_shippingregion_id
+
+    joins:
+      # Reachable from Client so the global queryRewrite filter can resolve.
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+      - name: Businesspartner
+        relationship: many_to_one
+        sql: "{CUBE}.c_bpartner_id = {Businesspartner}.c_bpartner_id"
+
+    dimensions:
+      - name: c_bpartner_location_id
+        title: Address ID
+        description: Address database primary key. Genuinely unique here, unlike the key this cube was split out of.
+        sql: c_bpartner_location_id
+        type: number
+        primary_key: true
+        public: true
+      - name: ad_client_id
+        sql: ad_client_id
+        type: number
+        public: false
+      - name: c_bpartner_location_name
+        title: Address Name
+        sql: c_bpartner_location_name
+        type: string
+      - name: city
+        title: City
+        sql: city
+        type: string
+      - name: region
+        title: Region
+        description: Region name, falling back to the free-text region on the location when no c_region row exists
+        sql: locationregionname
+        type: string
+      - name: country
+        title: Country
+        sql: countryname
+        type: string
+      - name: postal
+        title: Postal Code
+        sql: postal
+        type: string
+      - name: address1
+        title: Address Line 1
+        sql: address1
+        type: string
+      - name: shippingregion
+        title: Shipping Region
+        sql: c_shippingregion_name
+        type: string
+      - name: latitude
+        sql: latitude
+        type: number
+      - name: longitude
+        sql: longitude
+        type: number
+      - name: isbillto
+        title: Bill To
+        sql: isbillto
+        type: boolean
+      - name: isshipto
+        title: Ship To
+        sql: isshipto
+        type: boolean
+
+    measures:
+      - name: count
+        title: Address Count
+        type: count
+
+    # Same rule as the fact cubes: tenant only. Addresses are tenant-owned;
+    # there are no ad_client_id = 0 rows in c_bpartner_location.
+    access_policy:
+      - group: tenant_user
+        member_level:
+          includes: "*"
+        row_level:
+          filters:
+            - member: ad_client_id
+              operator: equals
+              values: ["{ securityContext.ad_client_id }"]

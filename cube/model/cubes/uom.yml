@@ -19,11 +19,14 @@ cubes:
       -- 36 across all tenants where it should see 44. Same regression the 2022
       -- model made by dropping the 0, still alive here.
       --
-      -- Tenant scoping comes from queryRewrite via the Client join below.
+      -- Tenant scoping is the access_policy at the bottom of this file, which
+      -- filters ad_client_id IN (tenant, 0). It used to come from queryRewrite
+      -- via the Client join, and when that was removed this cube leaked.
       WHERE u.isactive = 'Y'
 
     joins:
-      # queryRewrite filters ad_client_id IN (tenant, 0) on every query.
+      # Kept for drill-through to client attributes. It no longer carries any
+      # isolation - that is the access_policy below.
       - name: Client
         relationship: many_to_one
         sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
@@ -63,12 +66,32 @@ cubes:
         title: Units of Measure
         type: count
 
+    # BOTH filters are required. ad_language alone is NOT tenant isolation.
+    #
+    # This policy filtered on language only, and the cube's own comment said
+    # where isolation came from: "Tenant scoping comes from queryRewrite via the
+    # Client join below." When that filter was removed, this cube began
+    # returning every tenant's units of measure - 73 where tenant 1000026 should
+    # see 44 - because 36 of the 73 rows are tenant-owned, across 8 tenants.
+    #
+    # It was caught by a reference case that happened to count UOM rows, not by
+    # the policy-coverage check, which asked only whether an access_policy
+    # EXISTED. One did. It filtered the wrong column. The check now requires a
+    # filter on ad_client_id specifically.
+    #
+    # The two filters do different jobs and neither substitutes for the other:
+    # ad_client_id decides WHICH ROWS you may see, ad_language decides WHICH
+    # TRANSLATION of them - c_uom_trl carries one row per language, so without
+    # the language filter a join from a fact multiplies rows.
     access_policy:
       - group: tenant_user
         member_level:
           includes: "*"
         row_level:
           filters:
+            - member: ad_client_id
+              operator: equals
+              values: ["{ securityContext.ad_client_id }", "0"]
             - member: ad_language
               operator: equals
               values: ["{ securityContext.ad_language }"]

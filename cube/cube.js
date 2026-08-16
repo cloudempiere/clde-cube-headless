@@ -3,43 +3,37 @@
  *
  * TENANT ISOLATION
  *
- * queryRewrite is plain JavaScript, so unlike access_policy it does not depend
- * on the "{ securityContext.x }" templating that silently fails in JS models.
- * It therefore works today, with the fact cubes still in JavaScript.
+ * Every cube carrying ad_client_id declares its own access_policy - 35 of them,
+ * with no exceptions. That is the whole mechanism.
  *
- * It is DENY-BY-DEFAULT. The 2022 model did:
+ * It was not always. Until now queryRewrite pushed
+ * `Client.ad_client_id IN (tenant, 0)` onto every query, because access_policy
+ * templating - "{ securityContext.x }" - silently does nothing in JavaScript
+ * cubes: the string passes through literally and matches no row. With the model
+ * in JS, that function was the only thing standing between sixteen tenants.
  *
- *     if (context.ad_client_id) { query.filters.push(...) }   // no else
+ * The model is now entirely YAML, where the templating works. The last cube
+ * without a policy was Warehouselayout, and the reason is worth remembering:
+ * the Inventory view read locator and warehouse names THROUGH it, and a
+ * row_level filter on a JOINED dimension does not merely hide dimension rows,
+ * it drops FACT rows whose join finds no permitted match. 651 movements have no
+ * locator at all, so a policy there silently deleted them from the view. That
+ * was misdiagnosed for a long time as 624 cross-tenant locator references; there
+ * are none - 0 of 16.5M movement lines - and locators are exclusively
+ * tenant-owned, 0 of 21,851 carrying ad_client_id = 0.
  *
- * so a token that authenticated but carried no claim received NO filter and
- * every tenant's rows. Here a missing claim throws instead.
+ * Warehouse now resolves both names on the fact, so the view no longer joins
+ * that cube and the policy is free.
  *
- * DO NOT REMOVE queryRewrite YET. ONE CUBE STILL DEPENDS ON IT ENTIRELY.
+ * WHAT STILL GUARDS THIS
  *
- * Every cube carrying ad_client_id now declares its own access_policy - except
- * Warehouselayout in Locator.yml. Cube's rule is that "when you define access
- * policies for specific groups, access is automatically denied to all other
- * groups", and that deny-by-default applies ONLY to cubes that HAVE a policy.
- * For Warehouselayout, this function is the entire isolation story. Remove it
- * and that cube becomes readable across all sixteen tenants, with no error and
- * nothing in the logs.
+ * access_policy is deny-by-default only for cubes that HAVE a policy. A cube
+ * added later without one is readable by every tenant, with no error and nothing
+ * in the logs. scripts/validate.mjs therefore FAILS if any cube exposing
+ * ad_client_id lacks an access_policy - that check is the durable guarantee, and
+ * queryRewrite below keeps only a claim assertion.
  *
- * Locator is excluded on purpose, not by oversight. Giving it the same policy
- * removed 654 rows from the Inventory view - 253,158 -> 252,504 - because
- * Warehouse facts join it, and a row_level filter on a JOINED DIMENSION drops
- * FACT rows whose join finds no permitted match. 624 shipment lines reference a
- * locator that is NULL or belongs to another ad_client_id. The full reasoning
- * is in Locator.yml.
- *
- * So the last step before this can go is a decision, not a code change: either
- * accept losing those 654 rows, or fix the cross-tenant locator references in
- * iDempiere, or classify Warehouselayout as non-tenant data.
- *
- * Until then both layers apply and agree; scripts/test-rollup-isolation.mjs
- * asserts the result.
- *
- * DESTINATION: per-cube access_policy everywhere, which additionally gives
- * member-level control and masking - see docs/ADR-001.
+ * DESTINATION REACHED: see docs/ADR-001.
  */
 module.exports = {
   /**
@@ -119,33 +113,38 @@ module.exports = {
   },
 
   /**
-   * TENANT ISOLATION
+   * CLAIM ASSERTION ONLY. The tenant FILTER that used to live here is gone.
    *
-   * The rule is iDempiere's own: ad_client_id IN (tenant, 0).
+   * WHAT THIS USED TO DO, AND WHY IT NO LONGER DOES
    *
-   *   transactional facts   tenant rows only - c_order, c_invoice and
-   *                         m_movement contain ZERO ad_client_id = 0 rows,
-   *                         so the 0 is harmless there
-   *   master and reference  tenant rows PLUS system defaults - c_uom has 37
-   *                         system rows, ad_ref_list 3,232, ad_org 1,
-   *                         c_bpartner 2
+   * It pushed `Client.ad_client_id IN (tenant, 0)` onto every query. That was
+   * the entire isolation story while the model was JavaScript, because
+   * access_policy templating - "{ securityContext.x }" - silently does nothing
+   * in JS cubes: the string passes through literally and matches no row.
    *
-   * One rule covers both. Earlier revisions kept an explicit list of "system
-   * cubes" to exempt, which was a maintenance hazard: register a new lookup
-   * cube late and every query touching it breaks.
+   * Every cube carrying ad_client_id is now YAML and declares its own
+   * access_policy - 35 of them. The last holdout was Warehouselayout, which
+   * could not have one because the Inventory view reached locator and warehouse
+   * names THROUGH it, and a row_level filter on a joined dimension drops FACT
+   * rows whose join finds no permitted match. 651 movements have no locator at
+   * all and vanished. Warehouse now carries those two names on the fact, the
+   * view no longer joins that cube, and the policy costs nothing.
    *
-   * REGRESSION THIS RESTORES
+   * Removing the filter also removes a forced join to Client on every single
+   * query, which existed only to carry the predicate.
    *
-   * The 2020 model filtered values: [user.ad_client_id, 0]. The 2022 rewrite
-   * dropped the 0 - values: [context.ad_client_id] - so system-owned master
-   * data has been invisible since then: every reference value, 37 units of
-   * measure, the system org. This restores it.
+   * WHY AN ASSERTION REMAINS
    *
-   * DENY BY DEFAULT
+   * access_policy is deny-by-default only for cubes that HAVE a policy. A cube
+   * added later without one would be readable across all sixteen tenants, with
+   * no error and nothing in the logs - exactly the failure this file has warned
+   * about since the 2022 model shipped `if (context.ad_client_id) { ... }` with
+   * no else, handing every tenant's rows to any token that authenticated
+   * without a claim.
    *
-   * 2022 applied its filter only when the claim was present, with no else, so
-   * a token without ad_client_id received every tenant's rows. Here a missing
-   * claim throws.
+   * So the claim check stays - it is cheap and it fails loudly - and
+   * scripts/validate.mjs now FAILS if any cube exposing ad_client_id lacks an
+   * access_policy. That check, not this function, is what keeps the guarantee.
    */
   queryRewrite: (query, { securityContext }) => {
     const tenant = securityContext?.ad_client_id;
@@ -154,12 +153,6 @@ module.exports = {
       throw new Error('Access denied: security context carries no ad_client_id');
     }
 
-    query.filters = query.filters ?? [];
-    query.filters.push({
-      member: 'Client.ad_client_id',
-      operator: 'equals',
-      values: [String(tenant), '0'],
-    });
     return query;
   },
 };

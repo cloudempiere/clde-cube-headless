@@ -8,9 +8,16 @@ views:
     cubes:
       - join_path: Warehouse
         includes: "*"
-      - join_path: Warehouse.Warehouselayout
-        prefix: true
-        includes: [name, m_warehouse_name]
+      # Warehouselayout is deliberately NOT joined.
+      #
+      # It supplied [name, m_warehouse_name] here, and that join is what stopped
+      # Warehouselayout from carrying an access_policy: a row_level filter on a
+      # joined dimension drops FACT rows that find no permitted match, and 651
+      # movements have no locator to match. Warehouse.locator and
+      # Warehouse.warehousename now carry the same values off the fact itself.
+      #
+      # Warehouselayout remains a cube in its own right and is still queryable
+      # directly; it simply no longer sits in this view's join graph.
       - join_path: Warehouse.Product
         prefix: true
         includes: [name, value]

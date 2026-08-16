@@ -51,19 +51,31 @@ cubes:
         type: string
     pre_aggregations:
 
-    # NO row_level policy here, deliberately.
+    # TENANT ONLY - no ", 0" branch, unlike the master-data cubes.
     #
-    # Adding one removed 654 rows from the Inventory view - 253,158 -> 252,504.
-    # Warehouse facts JOIN this cube, and a row_level filter on a joined
-    # dimension does not just hide dimension rows, it DROPS FACT ROWS whose
-    # join finds no permitted match. 624 shipment lines reference a locator
-    # that is NULL or belongs to another ad_client_id, so filtering the locator
-    # silently reduced a shipment count.
+    # The IN (tenant, 0) rule exists so system-owned rows stay visible: c_uom has
+    # 37, ad_ref_list 3,232. m_locator has NONE - 0 of 21,851 rows carry
+    # ad_client_id = 0. Locators are exclusively tenant-owned, so admitting 0
+    # here would widen the filter to match nothing.
     #
-    # It bought no security either: the facts are already tenant-scoped by
-    # their own policies, and direct queries against this cube are covered by
-    # the global queryRewrite.
+    # THIS POLICY WAS BLOCKED UNTIL NOW, and the reason is worth keeping.
     #
-    # The 624 cross-tenant locator references are a DATA issue in iDempiere
-    # worth raising separately - they are not something the semantic layer
-    # should paper over by dropping rows.
+    # The Inventory view used to reach locator and warehouse names THROUGH this
+    # cube. A row_level filter on a joined dimension does not merely hide
+    # dimension rows - it drops FACT rows whose join finds no permitted match -
+    # so adding this policy silently removed 651 movements from that view
+    # (253,143 -> 252,492). They were not cross-tenant rows, which is what an
+    # earlier revision of this comment claimed: they have NO LOCATOR AT ALL.
+    # There are 0 cross-tenant locator references in the database.
+    #
+    # Warehouse now carries locator and warehousename on the fact, the view no
+    # longer joins this cube, and the policy costs nothing.
+    access_policy:
+      - group: tenant_user
+        member_level:
+          includes: "*"
+        row_level:
+          filters:
+            - member: ad_client_id
+              operator: equals
+              values: ["{ securityContext.ad_client_id }"]

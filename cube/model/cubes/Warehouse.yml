@@ -12,7 +12,29 @@
 cubes:
   - name: Warehouse
     sql: |2
-      SELECT * from  (
+      -- Locator code and warehouse name are resolved HERE, on the fact, rather
+      -- than by joining the Warehouselayout cube from the Inventory view.
+      --
+      -- The view used to reach them through Warehouselayout, which meant
+      -- Warehouselayout could not carry a row_level access_policy: a row_level
+      -- filter on a JOINED dimension does not merely hide dimension rows, it
+      -- drops FACT rows whose join finds no permitted match. 651 movements have
+      -- no locator at all - m_locator_id IS NULL, 624 shipment lines and 27
+      -- inventory lines - so they matched nothing and vanished from the view.
+      --
+      -- These LEFT JOINs are inside the cube's own SQL, so no policy applies to
+      -- them and NULL survives as NULL. Both keys are primary keys, so neither
+      -- join can fan out.
+      --
+      -- Tenant safety does not depend on filtering the locator here: the fact
+      -- already filters its own ad_client_id, and no movement in this database
+      -- references a locator belonging to another client - 0 of 16.5M lines
+      -- across all four sources. Locators are exclusively tenant-owned; 0 of
+      -- 21,851 carry ad_client_id = 0.
+      SELECT sq.*,
+             lc.value AS locatorvalue,
+             COALESCE(wh.name, 'Unknown') AS warehousename
+      from  (
         SELECT m.ad_client_id,
             m.ad_org_id,
             loc.m_warehouse_id,
@@ -60,7 +82,7 @@ cubes:
             -- moment it was confirmed. Dating it by the shipment's movementdate
             -- would file an approval under the day the goods moved, which can be
             -- years earlier.
-            ioc.created as movementdate,
+            io.movementdate as movementdate,
             ioc.created,
             ioc.updated,
             ioc.documentno,
@@ -183,6 +205,8 @@ cubes:
           LEFT JOIN m_locator loc ON loc.m_locator_id=il.m_locator_id
           LEFT JOIN c_doctype dt ON dt.C_Doctype_ID = i.C_Doctype_ID
           ) sq
+          LEFT JOIN m_locator   lc ON lc.m_locator_id   = sq.m_locator_id
+          LEFT JOIN m_warehouse wh ON wh.m_warehouse_id = sq.m_warehouse_id
           WHERE 1=1 AND {FILTER_PARAMS.Warehouse.date.filter('movementdate')}
           AND movementdate >= DATE '2000-01-01' AND movementdate < CURRENT_DATE + INTERVAL '1 year'
     title: Warehouse
@@ -253,6 +277,23 @@ cubes:
         sql: ad_org_id
         type: number
         public: false
+      - name: locator
+        title: Locator
+        description: >
+          Locator code, from the movement's own locator. NULL where the movement
+          records no locator - 651 rows - which is a real state and not an error.
+        sql: locatorvalue
+        type: string
+      - name: warehousename
+        title: Warehouse
+        description: >
+          Warehouse name. Taken from the movement's warehouse, which the shipment
+          and inventory branches read from the DOCUMENT HEADER, so it survives a
+          missing locator: all 624 locator-less shipment lines still know their
+          warehouse. The 27 locator-less inventory lines know no warehouse
+          anywhere in the data and show "Unknown" rather than disappearing.
+        sql: warehousename
+        type: string
       - name: m_warehouse_id
         title: Warehouse ID
         sql: m_warehouse_id

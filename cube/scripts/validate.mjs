@@ -29,6 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import pg from 'pg';
+import { load as loadYaml } from 'js-yaml';
 
 const API    = process.env.CUBE_URL ?? 'http://localhost:4000/cubejs-api/v1/load';
 const CASES  = path.resolve(import.meta.dirname, 'cases');
@@ -104,6 +105,61 @@ async function fromSql(sql) {
     return Number(Object.values(rows[0])[0]);
   } finally { await client.end(); }
 }
+
+/**
+ * Every cube exposing ad_client_id must have a policy that FILTERS ON IT.
+ *
+ * This replaces a protection queryRewrite gave for free. It pushed a tenant
+ * predicate onto every query, so a cube that forgot its own scoping was covered
+ * anyway. That filter is gone - it also forced a join to Client on every request
+ * - and access_policy is deny-by-default only for cubes that HAVE a policy.
+ *
+ * THE FIRST VERSION OF THIS CHECK ASKED ONLY WHETHER A POLICY EXISTED.
+ *
+ * It passed uom.yml, which had one - filtering ad_language, and nothing else.
+ * Its tenancy came from queryRewrite, as its own comment recorded. Removing that
+ * filter exposed 8 tenants' units of measure to each other: 73 rows where a
+ * tenant should see 44. A reference case that happened to count UOM rows caught
+ * it; this check did not.
+ *
+ * So it now asserts the filter is on ad_client_id specifically, and parses the
+ * YAML rather than pattern-matching it - the domain cubes share one policy
+ * through an anchor (&lang_policy), which a regex reads as ten cubes with no
+ * filters at all.
+ */
+function assertPolicyCoverage() {
+  const dir = path.resolve(import.meta.dirname, '..', 'model', 'cubes');
+  const files = fs.readdirSync(dir).filter(f => f.endsWith('.yml'));
+  const bad = [];
+  let checked = 0;
+
+  for (const f of files) {
+    let doc;
+    try { doc = loadYaml(fs.readFileSync(path.join(dir, f), 'utf8')); }
+    catch (e) { console.error(`  cannot parse ${f}: ${e.message}`); process.exit(1); }
+
+    for (const cube of doc?.cubes ?? []) {
+      const exposesTenant = (cube.dimensions ?? []).some(d => d.name === 'ad_client_id');
+      if (!exposesTenant) continue;
+      checked++;
+      const filters = (cube.access_policy ?? [])
+        .flatMap(p => p.row_level?.filters ?? []);
+      if (!filters.some(x => x.member === 'ad_client_id')) {
+        const on = filters.map(x => x.member).join(', ') || 'nothing';
+        bad.push(`${f}:${cube.name} (filters on: ${on})`);
+      }
+    }
+  }
+
+  if (bad.length) {
+    console.error(`\n  TENANT FILTER MISSING on ${bad.length} cube(s) exposing ad_client_id:`);
+    bad.forEach(b => console.error(`    ${b}`));
+    console.error('  Each returns every tenant\'s rows. Add an ad_client_id row_level filter.\n');
+    process.exit(1);
+  }
+  console.log(`\n  tenant filter present on all ${checked} cubes exposing ad_client_id`);
+}
+assertPolicyCoverage();
 
 const files = process.argv[2]
   ? [path.resolve(process.argv[2])]

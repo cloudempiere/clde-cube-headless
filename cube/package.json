@@ -7,5 +7,5 @@
     "migrate": "node scripts/migrate-js.mjs",
     "test:isolation": "node scripts/test-language-fanout.mjs"
   },
-  "dependencies": { "pg": "^8.13.0" }
+  "dependencies": { "pg": "^8.13.0", "js-yaml": "^4.1.0" }
 }

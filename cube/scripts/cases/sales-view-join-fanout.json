@@ -1,0 +1,31 @@
+{
+  "name": "Sales view does not multiply rows when grouped by a joined dimension",
+  "note": "The real risk in a view is FAN-OUT. Sales pulls Businesspartner in over a join_path, and if that join is not one-to-one the measure inflates - silently, because the number still looks like a plausible order count. Grouping by a dimension sourced from the JOINED cube and summing must still give 110,854, identical to the ungrouped total and to the source.\n\nBusinesspartner_c_bpartner_name is chosen deliberately: it is a STRING, so validate.mjs picks the measure as the first numeric value in each row rather than the dimension.",
+  "cubeQuery": {
+    "measures": [
+      "Sales.linecount"
+    ],
+    "dimensions": [
+      "Sales.Businesspartner_c_bpartner_name"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Sales.dateordered",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_order o JOIN c_orderline ol ON ol.c_order_id=o.c_order_id WHERE o.ad_client_id=1000026 AND o.processed='Y' AND o.isproposal='N' AND o.dateordered >= DATE '2026-01-01' AND o.dateordered < DATE '2026-09-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "Sales view passes Orderfacts.linecount through unchanged",
+  "note": "First coverage of a VIEW. Views are the consumption surface for Superset, DBeaver and Angular, and until now nothing tested one. A view can differ from its underlying cube in ways no cube-level case reaches, because it introduces joins that the cube itself does not perform. This asserts the plain passthrough: Sales.linecount must equal Orderfacts.linecount over the same window, 110,854.",
+  "cubeQuery": {
+    "measures": [
+      "Sales.linecount"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Sales.dateordered",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_order o JOIN c_orderline ol ON ol.c_order_id=o.c_order_id WHERE o.ad_client_id=1000026 AND o.processed='Y' AND o.isproposal='N' AND o.dateordered >= DATE '2026-01-01' AND o.dateordered < DATE '2026-09-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

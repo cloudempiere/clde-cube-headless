@@ -54,6 +54,12 @@ cubes:
             ioc.m_inoutconfirm_id AS record_id,
             iolc.M_InOutLineConfirm_uu as line_uuid,
             ioc.M_InOutConfirm_uu as doc_uuid,
+            -- LEFT on created, deliberately, unlike the other four branches.
+            -- A confirmation is not a movement: M_InOutConfirm carries no
+            -- movementdate of its own, and the moment it was created IS the
+            -- moment it was confirmed. Dating it by the shipment's movementdate
+            -- would file an approval under the day the goods moved, which can be
+            -- years earlier.
             ioc.created as movementdate,
             ioc.created,
             ioc.updated,
@@ -89,7 +95,7 @@ cubes:
             iol.m_inoutline_id AS record_id,
             iol.m_inoutline_uu as line_uuid,
             io.m_inout_uu as doc_uuid, 
-            iol.created as movementdate,
+            io.movementdate as movementdate,
             iol.created,
             iol.updated,
             io.documentno,
@@ -121,7 +127,7 @@ cubes:
             pl.M_ProductionLine_id AS record_id,
             pl.M_ProductionLine_uu as line_uuid,
             p.M_Production_uu as doc_uuid,    
-            pl.created as movementdate,
+            p.movementdate as movementdate,
             pl.created,
             pl.updated,
             p.documentno,
@@ -154,7 +160,7 @@ cubes:
             il.M_InventoryLine_id AS record_id,
             il.M_InventoryLine_uu as line_uuid,
             i.M_Inventory_uu as doc_uuid,    
-            il.created as movementdate,
+            i.movementdate as movementdate,
             il.created,
             il.updated,
             i.documentno,
@@ -262,6 +268,26 @@ cubes:
         type: number
         public: false
         primary_key: true
+      # THE BUSINESS DATE, not the data-entry timestamp.
+      #
+      # Four of the five UNION branches used `created` - the audit column
+      # recording when the row was typed in - while only M_Movement used the real
+      # MovementDate. Three of those four had a MovementDate available on their
+      # own header and were simply not reading it:
+      #
+      #   m_inout       463,245 of 1,240,614 rows differ, max gap 1,901 days
+      #   m_production    5,195 of    24,950, max gap   667 days
+      #   m_inventory     6,828 of   113,910, max gap 2,366 days
+      #
+      # Most differences are a few days and stay inside their month, but 20,518
+      # shipments landed in the WRONG MONTH and 836 in the wrong year. This
+      # dimension drives the time filter, the partitioning and the
+      # pre-aggregation, so those rows were reported against the day someone
+      # entered them rather than the day stock physically moved.
+      #
+      # Row totals are unaffected - no row crosses the 2000-01-01 floor or the
+      # +1 year ceiling either way - so this changes WHEN movements are counted,
+      # never HOW MANY. Any saved report with a date range will shift.
       - name: movementdate
         title: Document Date
         sql: movementdate

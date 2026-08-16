@@ -21,7 +21,6 @@ cubes:
           i.issotrx,
           i.dateinvoiced,
           i.dateacct,
-          daysbetween(ips.duedate,i.dateinvoiced) AS netdays,
           COALESCE (paymenttermduedate(i.c_paymentterm_id, i.dateinvoiced),ips.duedate) AS duedate,
           COALESCE (paymenttermduedays(i.c_paymentterm_id, i.dateinvoiced, getdate()),daysbetween(getdate(), ips.duedate) ) AS daysdue,
           COALESCE(i.estimatedpaydate::timestamp with time zone, paymenttermduedate(i.c_paymentterm_id, i.dateinvoiced::timestamp with time zone)) AS estimatedpaydate,
@@ -42,7 +41,15 @@ cubes:
             i.c_currency_id, acctccy.c_currency_id, i.dateacct, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id
           ) AS openamt,
 
-          currencyconvert(i.chargeamt, i.c_currency_id, acctccy.c_currency_id, i.dateacct, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id) AS chargeamt,
+          -- REMOVED with `netdays` above and `pastdueamt` below: three columns
+          -- this cube computed and no member, view or script ever read.
+          --
+          -- chargeamt is a legitimate iDempiere field and can be brought back
+          -- deliberately as a measure - converted, like every other amount here.
+          -- It is dropped rather than kept "in case", because keeping it is what
+          -- put a currencyconvert on it in the first place: the currency rollout
+          -- swept every amount column in the SELECT, including one that was
+          -- dead, and paid to convert a value that was then discarded.
           i.c_currency_id,
           i.c_conversiontype_id,
           i.c_paymentterm_id,

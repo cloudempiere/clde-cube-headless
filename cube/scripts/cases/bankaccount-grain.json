@@ -1,0 +1,18 @@
+{
+  "name": "Bankaccount is one row per account",
+  "note": "Openitem joins this many_to_one. No joins in the cube SQL; verified 132/132.",
+  "cubeQuery": {
+    "measures": [
+      "Bankaccount.count"
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_bankaccount WHERE ad_client_id IN (1000026,0)",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

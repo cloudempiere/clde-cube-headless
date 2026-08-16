@@ -1,0 +1,18 @@
+{
+  "name": "Bpartnerlocation is one row per address, system row included",
+  "note": "Two assertions in one number. The cube must not fan out - its four LEFT JOINs to c_location, c_region, c_country and c_shippingregion are all to unique keys - and its policy must be IN (tenant, 0), not tenant only.\n\nThe policy first said tenant only, on the stated assumption that 'there are no ad_client_id = 0 rows in c_bpartner_location'. There is exactly one, id 1035455, and the cube returned 20,585 against a true 20,586. An assumption written as a fact and never checked - the same shape as the 2022 model losing every system-owned row.",
+  "cubeQuery": {
+    "measures": [
+      "Bpartnerlocation.count"
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_bpartner_location WHERE ad_client_id IN (1000026,0)",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "Dropshipcustomers inherits the Businesspartner grain through extends",
+  "note": "Dropshipcustomers and Vendors are defined with `extends: Businesspartner` and `{Businesspartner.sql()}`, a pattern the JS->YAML converter translated and which no query had touched since. If extends did not carry the grain fix, these would still fan out while Businesspartner itself looked correct. It does carry: 10,653 matches c_bpartner where iscustomer='Y' exactly.",
+  "cubeQuery": {
+    "measures": [
+      "Dropshipcustomers.count"
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_bpartner WHERE ad_client_id IN (1000026,0) AND iscustomer='Y'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "Product is one row per product despite its attribute joins",
+  "note": "Orderfacts and Cashflowplan join this cube many_to_one, which makes Cube TRUST m_product_id as unique. That trust is exactly what made Businesspartner inflate Invoices 126x when its key was false. The attribute joins - M_AttributeInstance and M_AttributeValue - are the same shape that broke Businesspartner, and were verified unique by hand (273,367/273,367, worst product 1 row) before the direction was switched. This holds that verification.",
+  "cubeQuery": {
+    "measures": [
+      "Product.count"
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM m_product WHERE ad_client_id IN (1000026,0)",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

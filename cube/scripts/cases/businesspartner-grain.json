@@ -1,0 +1,18 @@
+{
+  "name": "Businesspartner is one row per partner",
+  "note": "Guards the grain fix. This cube used to LEFT JOIN c_bpartner_location and ad_user while declaring c_bpartner_id as its primary key, so 128,930 partners emitted 260,117 rows and any many_to_one join multiplied the fact - the Invoices view returned 14,549,714 lines against a true 114,960. If a location or contact join is ever reintroduced here, this count rises immediately.",
+  "cubeQuery": {
+    "measures": [
+      "Businesspartner.count"
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_bpartner WHERE ad_client_id IN (1000026,0)",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

@@ -124,8 +124,14 @@ cubes:
         title: Address Count
         type: count
 
-    # Same rule as the fact cubes: tenant only. Addresses are tenant-owned;
-    # there are no ad_client_id = 0 rows in c_bpartner_location.
+    # IN (tenant, 0), NOT tenant only.
+    #
+    # This first said "there are no ad_client_id = 0 rows in
+    # c_bpartner_location" and used the fact-cube rule. There is exactly one,
+    # id 1035455, and the tenant-only filter silently dropped it: the cube
+    # returned 20,585 where the table holds 20,586. Small, but it was an
+    # assumption stated as fact and never checked - which is how the 2022 model
+    # lost every system-owned row by dropping the same 0.
     access_policy:
       - group: tenant_user
         member_level:
@@ -134,4 +140,4 @@ cubes:
           filters:
             - member: ad_client_id
               operator: equals
-              values: ["{ securityContext.ad_client_id }"]
+              values: ["{ securityContext.ad_client_id }", "0"]

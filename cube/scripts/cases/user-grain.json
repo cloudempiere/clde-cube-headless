@@ -1,0 +1,18 @@
+{
+  "name": "User is one row per user despite its partner and location joins",
+  "note": "Openitem joins this cube many_to_one. Its SQL LEFT JOINs c_bpartner and c_bpartner_location, but on the USER's own foreign keys, so each resolves to at most one row. Verified 236,427/236,427 before switching direction; this holds it.",
+  "cubeQuery": {
+    "measures": [
+      "User.count"
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM ad_user WHERE ad_client_id IN (1000026,0)",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

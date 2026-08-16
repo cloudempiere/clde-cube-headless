@@ -105,19 +105,7 @@ const ROLLUP_GRAIN = 'year';
  */
 const RANGE = ['2026-01-01', '2026-08-31'];
 
-/**
- * Guards the rule that build_range_start must equal the cube SQL floor.
- *
- * Cube does NOT fall back to source when a query reaches past build_range_start
- * - it answers from the rollup and silently drops the uncovered years. Measured
- * with build_range_start at 2015: tenant 1000015 asked for 2010-2026 and got
- * 4,391,856 instead of 4,479,064, missing 87,208 lines, no error.
- *
- * Both floors are 2000-01-01, so a range starting BEFORE that must not be
- * answered from a rollup. If someone raises build_range_start without raising
- * the cube SQL floor, this starts failing.
- */
-const CROSSING = ['1999-01-01', '2026-08-31'];
+
 
 const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 function token() {
@@ -214,26 +202,54 @@ for (const [cube, measure, timeDim] of CASES) {
 
   const total = (hit.data ?? []).reduce((a, r) => a + Number(r[`${cube}.${measure}`] ?? 0), 0);
 
-  // 3. a range crossing build_range_start must fall back to source. The rollups
-  //    hold 2015+ while the cubes serve from 2000, so answering this from the
-  //    rollup would silently drop fifteen years.
-  const crossSql = await raw('sql', at(ROLLUP_GRAIN, CROSSING));
-  const crossOk = !crossSql.includes('dev_pre_aggregations');
+  console.log(`${label} PASS  ${String(Math.round(total)).padStart(9)}  ${used[0].split('.').pop()}`);
+}
 
-  console.log(
-    `${label} ${crossOk ? 'PASS' : 'FAIL'}  ${String(Math.round(total)).padStart(9)}` +
-    `  ${used[0].split('.').pop()}`
-  );
-  if (!crossOk) {
-    console.log(`${' '.repeat(8)}${CROSSING[0]}..${CROSSING[1]} answered from a rollup - build_range_start no longer matches the cube SQL floor`);
+/**
+ * Static check: build_range_start must equal the cube's own SQL date floor.
+ *
+ * This reads the source rather than issuing a query, because no query can
+ * detect the fault reliably. Cube does not fall back to source outside the
+ * build range - it answers from the rollup and drops the uncovered years.
+ * Measured with the floor at 2015: tenant 1000015 asked for 2010-2026 and got
+ * 4,391,856 instead of 4,479,064; for 2010-2012 it got 0 instead of 14,566.
+ * No error either time.
+ *
+ * A runtime probe was tried first and had to be abandoned: if no rows happen
+ * to exist below the floor, a truncating configuration still answers correctly
+ * today and only starts lying when older data arrives. Worse, when the floors
+ * DO match, declining to use the rollup is the wrong expectation - so the
+ * probe reported all seven cubes broken when nothing was. Comparing the two
+ * floors in the source states the actual rule.
+ */
+console.log('\n  build_range_start vs cube SQL floor\n');
+const modelDir = path.join(root, 'model', 'cubes');
+for (const f of fs.readdirSync(modelDir).sort()) {
+  if (!/\.(js|yml)$/.test(f)) continue;
+  const src = fs.readFileSync(path.join(modelDir, f), 'utf8');
+  // JS keeps build_range_start and its DATE on one line; YAML puts the sql: on
+  // the next. A same-line pattern silently SKIPS every converted cube - which
+  // it did, passing the whole run while checking nothing on the only cube that
+  // had moved to YAML. Allow the value to sit within the next couple of lines.
+  const brs = src.match(/build_range_start:(?:[^\n]*\n?){0,2}?[^\n]*DATE '(\d{4}-\d{2}-\d{2})'/);
+  if (!brs) continue;
+  const floor = src.match(/>=\s*DATE '(\d{4}-\d{2}-\d{2})'/);
+  const name = f.replace(/\.(js|yml)$/, '').padEnd(18);
+  if (!floor) {
+    console.log(`  ${name} WARN  build_range starts ${brs[1]}, cube SQL has no floor`);
+    console.log(`  ${' '.repeat(18)}       correct only while no row predates ${brs[1]}`);
+  } else if (floor[1] !== brs[1]) {
+    console.log(`  ${name} FAIL  build_range ${brs[1]} != SQL floor ${floor[1]} - truncates silently`);
     failed++;
+  } else {
+    console.log(`  ${name} PASS  both floors ${brs[1]}`);
   }
 }
 
 console.log(
   failed
-    ? `\n  ${failed}/${CASES.length} failed\n`
-    : `\n  all ${CASES.length} matched, built, served; build_range boundary respected\n` +
+    ? `\n  ${failed} failure(s)\n`
+    : `\n  all ${CASES.length} matched, built and served; floors consistent\n` +
       `  Numbers are NOT checked here - no query can bypass the rollups. Run\n` +
       `  scripts/validate.mjs for correctness against reference SQL.\n`
 );

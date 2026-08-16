@@ -1,0 +1,66 @@
+# GENERATED from CBank.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Bank
+    sql: |2
+      SELECT 
+              b.ad_client_id, 
+              b.c_bank_id, 
+              b.updated, 
+              b.description, 
+              b.swiftcode, 
+              b.name, b.routingno
+              FROM c_bank b
+              WHERE (  
+                1=1 OR b.ad_client_id=0)
+    joins:
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+    title: Bank
+    description: All Banks defined in the system
+    sql_alias: ba
+    measures:
+      - name: count
+        type: count
+        drill_members:
+          - name
+    dimensions:
+      - name: ad_client_id
+        title: Client
+        sql: "{CUBE}.ad_client_id"
+        type: number
+        public: true
+      - name: c_bank_id
+        title: Bank ID
+        description: Banka database primary key
+        sql: c_bank_id
+        type: number
+        primary_key: true
+        public: true
+      - name: updated
+        title: Updated
+        sql: updated
+        type: time
+      - name: description
+        sql: description
+        type: string
+      - name: swiftcode
+        sql: swiftcode
+        type: string
+      - name: name
+        sql: name
+        type: string
+      - name: routingno
+        sql: routingno
+        type: string
+    pre_aggregations:

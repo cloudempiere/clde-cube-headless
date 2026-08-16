@@ -1,0 +1,50 @@
+# GENERATED from Client.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Client
+    sql: "SELECT c.ad_client_id, c.created, c.updated, c.name FROM ad_client c"
+    refresh_key:
+      sql: "SELECT MAX(cl.created) FROM ad_client cl"
+    title: Tenant
+    description: "All Client/Tenant related information"
+    sql_alias: cl
+    measures:
+      - name: count
+        title: Total Count
+        sql: ad_client_id
+        type: count
+    dimensions:
+      - name: ad_client_id
+        title: Client ID
+        description: Client database primary key
+        sql: ad_client_id
+        type: number
+        primary_key: true
+        public: true
+      - name: ad_client_name
+        title: Client
+        sql: name
+        type: string
+        primary_key: false
+        public: false
+    pre_aggregations:
+      - name: main
+        type: rollup
+        measures:
+          - count
+        dimensions:
+          - Client.ad_client_id
+          - ad_client_name
+        indexes:
+          - name: ad_client_id
+            columns:
+              - Client.ad_client_id

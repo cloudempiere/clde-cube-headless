@@ -1,0 +1,126 @@
+# GENERATED from AccountingFact.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Factacct
+    sql: |2
+      SELECT 
+        fa.ad_client_id,
+        fa.ad_org_id,
+        fa.isactive,
+        fa.created,
+        fa.createdby,
+        fa.updated,
+        fa.updatedby,
+        fa.dateacct,
+        -- Required by the ActualAccunting / NotActAccounting segments, which compare
+        -- {CUBE}.postingtype. It was never selected, so both segments failed with
+        -- "column factacct.postingtype does not exist". The compared value 'A' was
+        -- always correct - A covers 15.6M rows, alongside S, E and B.
+        fa.postingtype,
+        to_char(fa.dateacct, 'YYYY-MM'::text) AS finyear_mth,
+        to_char(fa.dateacct, '"FY"YYYY'::text) AS finyear,
+        fa.c_project_id,
+        fa.c_acctschema_id,
+        fa.account_id,
+        ev.value as accountvalue,
+        ev.accounttype AS c_elementvalue_acctype_name_code,
+        ev.accounttype,
+        ev.name as c_elementvalue_name,
+        fa.amtacctdr,
+        fa.amtacctcr,
+        sch.name as c_acctschema_name
+      FROM fact_acct fa
+      JOIN c_elementvalue ev ON (fa.account_id=ev.c_elementvalue_id)
+      JOIN c_acctschema sch ON (fa.c_acctschema_id=sch.c_acctschema_id)
+      WHERE 1=1 AND {FILTER_PARAMS.Factacct.date.filter('fa.dateacct')}
+    joins:
+      - name: AccountType
+        relationship: many_to_one
+        sql: "{CUBE}.c_elementvalue_acctype_name_code = {AccountType}.value"
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+    segments:
+      - name: ActualAccunting
+        sql: "{CUBE}.postingtype = 'A'"
+      - name: NotActAccounting
+        sql: "{CUBE}.postingtype != 'A'"
+    measures:
+      - name: count
+        type: count
+      - name: amtacctdr
+        type: sum
+        sql: amtacctdr
+      - name: amtacctcr
+        type: sum
+        sql: amtacctcr
+      - name: netamt
+        sql: amtacctdr-amtacctcr
+        type: sum
+        rollingWindow:
+          trailing: unbounded
+      - name: openingbalance
+        sql: "{netamt}"
+        type: number
+        rollingWindow:
+          trailing: unbounded
+          offset: start
+      - name: acctbalance
+        sql: "{openingbalance} + ({amtacctdr}-{amtacctcr})"
+        type: number
+    dimensions:
+      - name: ad_client_id
+        title: "Client/Tenant"
+        sql: ad_client_id
+        type: number
+        public: false
+      - name: ad_org_id
+        title: "Client/Tenant"
+        sql: ad_org_id
+        type: number
+        public: false
+      - name: c_acctschema_id
+        title: Accounting Schema
+        sql: c_acctschema_id
+        type: number
+        public: false
+      - name: c_acctschema_name
+        title: Accounting Schema
+        sql: c_acctschema_name
+        type: string
+        public: true
+      - name: account_id
+        sql: account_id
+        type: number
+        primary_key: true
+        public: false
+      - name: dateacct
+        title: Accounting Date
+        sql: dateacct
+        type: time
+      - name: account
+        title: Account Key
+        sql: accountvalue
+        type: string
+      - name: accounttype
+        title: Account Type
+        sql: accounttype
+        type: string
+      - name: c_elementvalue_name
+        title: Account Name
+        sql: c_elementvalue_name
+        type: string
+      - name: c_elementvalue_acctype_name
+        title: Account Type
+        sql: c_elementvalue_acctype_name
+        type: string
+    pre_aggregations:

@@ -1,0 +1,88 @@
+# GENERATED from MProduct.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Product
+    sql: |2
+      SELECT p.ad_client_id, p.created, p.updated,p.m_product_id,p.NAME,p.sku,p.ispurchased,p.isreturnable,p.isactive,p.VALUE,
+        p.producttype,p.abcanalysisgroup as m_product_abcanalysisgroup,p.ismanufactured,p.manufacturerpartno,p.discontinued,p.islisted,p.discontinuedby,
+        p.listedat,p.discontinuedat,p.m_product_category_id, 
+        CASE WHEN av.value='Y' THEN 'true' ELSE 'false' END as iscatalog
+        FROM m_product p
+        LEFT JOIN M_AttributeInstance ai ON (p.M_AttributeSetInstance_ID=ai.M_AttributeSetInstance_ID) AND ai.M_Attribute_ID=1000105
+        LEFT JOIN M_AttributeValue av ON (aV.M_AttributeValue_ID=aI.M_AttributeValue_ID)
+        WHERE 1=1
+    title: Product
+    description: Product details
+    sql_alias: prod
+    joins:
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+      - name: Productcategory
+        relationship: many_to_one
+        sql: "{CUBE}.m_product_category_id = {Productcategory}.m_product_category_id"
+    measures:
+      - name: count
+        type: count
+        drill_members:
+          - name
+      - name: uniqueproducts
+        title: Unique Products
+        description: Counts unique products
+        sql: m_product_id
+        type: countDistinctApprox
+    dimensions:
+      - name: ad_client_id
+        sql: ad_client_id
+        type: number
+        public: false
+      - name: m_product_id
+        title: Product ID
+        description: Product database primary key
+        sql: m_product_id
+        type: number
+        primary_key: true
+        public: true
+        format: id
+      - name: m_product_category_id
+        sql: m_product_category_id
+        type: number
+        public: false
+        format: id
+      - name: name
+        sql: name
+        type: string
+      - name: ispurchased
+        sql: ispurchased
+        type: boolean
+      - name: isactive
+        sql: isactive
+        type: boolean
+      - name: iscatalog
+        sql: iscatalog
+        type: boolean
+      - name: value
+        sql: value
+        type: string
+      - name: producttype
+        sql: producttype
+        type: string
+      - name: m_product_abcanalysisgroup
+        sql: "COALESCE(m_product_abcanalysisgroup,'C')"
+        type: string
+      - name: ismanufactured
+        sql: ismanufactured
+        type: boolean
+      - name: created
+        sql: created
+        type: time
+    pre_aggregations:

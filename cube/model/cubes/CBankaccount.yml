@@ -1,0 +1,112 @@
+# GENERATED from CBankaccount.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Bankaccount
+    sql: |2
+      SELECT 
+           ba.ad_client_id,
+           ba.ad_org_id,
+           ba.created,
+           ba.updated,
+           ba.currentbalance,
+           ba.c_bankaccount_id,
+           ba.c_bank_id,
+           ba.c_currency_id,
+           ba.name,
+           ba.value,
+           ba.isdefault,
+           ba.bankaccounttype,
+           ba.iban,
+           ba.description,
+           ba.accountno,
+           ba.bankaccounttype AS c_bankaccount_type_name_code
+      FROM c_bankaccount ba
+      WHERE 1=1
+    joins:
+      - name: BankAccountType
+        relationship: many_to_one
+        sql: "{CUBE}.c_bankaccount_type_name_code = {BankAccountType}.value"
+      - name: Client
+        relationship: many_to_one
+        sql: "{Bankaccount}.ad_client_id = {Client}.ad_client_id"
+      - name: Organization
+        relationship: many_to_one
+        sql: "{Bankaccount}.ad_org_id = {Organization}.ad_org_id"
+      - name: Bank
+        relationship: one_to_many
+        sql: "{Bankaccount}.c_bank_id = {Bank}.c_bank_id"
+    title: Bank Account
+    description: All Bank Account related information
+    sql_alias: bac
+    measures:
+      - name: count
+        type: count
+        sql: c_bankaccount_id
+        drill_members:
+          - name
+      - name: currentbalance
+        sql: currentbalance
+        type: sum
+    dimensions:
+      - name: ad_client_id
+        title: Client
+        sql: ad_client_id
+        type: number
+        public: false
+      - name: c_bankaccount_id
+        title: Bank Account ID
+        description: Bank Account database primary key
+        sql: c_bankaccount_id
+        type: number
+        primary_key: true
+        public: true
+      - name: c_bank_id
+        title: Bank ID
+        description: Banka database primary key
+        sql: c_bank_id
+        type: number
+        public: true
+      - name: c_currency_id
+        title: Client
+        sql: c_currency_id
+        type: number
+        public: false
+      - name: updated
+        title: Updated
+        sql: updated
+        type: time
+      - name: name
+        sql: name
+        type: string
+      - name: value
+        sql: value
+        type: string
+      - name: isdefault
+        sql: isdefault
+        type: string
+      - name: bankaccounttype
+        title: Bank Account Type
+        sql: c_bankaccount_type_name
+        type: string
+      - name: isactive
+        sql: isactive
+        type: boolean
+      - name: iban
+        sql: iban
+        type: string
+      - name: description
+        sql: description
+        type: string
+      - name: accountno
+        sql: accountno
+        type: string
+    pre_aggregations:

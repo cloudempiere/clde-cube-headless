@@ -1,0 +1,153 @@
+# GENERATED from BusinessPartner.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Dropshipcustomers
+    sql: "select * from {Businesspartner.sql()} bpdrp where isCustomer = 'Y'"
+    extends: Businesspartner
+    title: DropShip Customerrs
+    description: All Dropship related information
+    sql_alias: bpdrp
+  - name: Vendors
+    sql: "select * from {Businesspartner.sql()} bpvnd where isVendor = 'Y'"
+    extends: Businesspartner
+    title: Vendor
+    description: Vendor related information
+    sql_alias: bpvnd
+  - name: Businesspartner
+      # ONE ROW PER PARTNER. This is a partner dimension and nothing else.
+      #
+      # c_bpartner_id is declared primary_key below and Cube TRUSTS that. This
+      # cube used to LEFT JOIN c_bpartner_location and ad_user, making the real
+      # grain partner x location x contact: 128,930 partners emitted 260,117
+      # rows, one partner producing 4,970. Any many_to_one join then multiplied
+      # the fact - the Invoices view returned 14,549,714 lines against a true
+      # 114,960, 126x, with no error.
+      #
+      # Addresses live in Bpartnerlocation, keyed on c_bpartner_location_id.
+      # Not tidiness: c_invoice, c_order and m_inout each record WHICH location
+      # they used, so collapsing to one address per partner would give the
+      # right count with the WRONG address.
+    sql: |2
+      SELECT 
+        bp.ad_client_id,  
+        bp.c_bpartner_id, 
+        bp.ad_org_id,
+        bp.value,
+        bp.name as c_bpartner_name,
+        bp.isactive,
+        bp.created,
+        bp.updated,
+        bp.iscustomer,
+        bp.isvendor,
+        bp.isemployee AS bpartner_employee,
+        bpg.value AS bpartner_group_search_key,
+        bpg.name AS bpartner_group_name,
+        bpg.description AS bpartner_group_description,
+        bp.salesrep_id,
+        bp.abcanalysisgroup as c_bpartner_abcanalysisgroup
+        FROM c_bpartner bp
+        LEFT JOIN c_bp_group bpg ON bp.c_bp_group_id = bpg.c_bp_group_id
+        WHERE 1=1
+    title: Bpartner
+    description: All Bpartner related information
+    sql_alias: bp
+    joins:
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+      - name: User
+        relationship: many_to_one
+        sql: "{CUBE}.salesrep_id = {User}.ad_user_id"
+    measures:
+      - name: count
+        title: Total Count
+        sql: c_bpartner_id
+        type: count
+    dimensions:
+      - name: ad_client_id
+        sql: ad_client_id
+        type: number
+        format: id
+        public: false
+      - name: ad_org_id
+        sql: ad_org_id
+        type: number
+        format: id
+        public: false
+      - name: c_bpartner_id
+        title: Business Partner ID
+        description: Business Partner database primary key
+        sql: c_bpartner_id
+        type: number
+        format: id
+        primary_key: true
+        public: true
+      - name: c_bpartner_name
+        title: Company
+        sql: c_bpartner_name
+        type: string
+        primary_key: false
+        public: true
+      - name: value
+        title: Value
+        sql: value
+        type: string
+      - name: bpgroup
+        title: BP Group
+        sql: bpartner_group_name
+        type: string
+      - name: c_bpartner_created
+        title: BP Created
+        sql: created
+        type: time
+      - name: isCustomer
+        title: Customer
+        sql: iscustomer
+        type: boolean
+      - name: c_bpartner_abcanalysisgroup
+        title: ABC analysis group
+        sql: "COALESCE(c_bpartner_abcanalysisgroup,'C')"
+        type: string
+    pre_aggregations:
+      - name: cnt
+        type: rollup
+        measures:
+          - Businesspartner.count
+        dimensions:
+          - Client.ad_client_id
+          - Businesspartner.isCustomer
+        time_dimension: Businesspartner.c_bpartner_created
+        granularity: day
+        refresh_key:
+          every: "1 day"
+      - name: def
+        type: rollup
+        measures:
+          - Businesspartner.count
+        dimensions:
+          - Client.ad_client_id
+          - Businesspartner.ad_org_id
+          - Businesspartner.c_bpartner_id
+          - Businesspartner.c_bpartner_name
+          - Businesspartner.value
+          - Businesspartner.bpgroup
+        time_dimension: Businesspartner.c_bpartner_created
+        granularity: day
+        refresh_key:
+          every: "1 day"
+        indexes:
+          - name: ad_client_idx
+            columns:
+              - Client.ad_client_id
+          - name: c_bpartner_idx
+            columns:
+              - c_bpartner_id

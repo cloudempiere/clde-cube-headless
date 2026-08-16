@@ -1,0 +1,76 @@
+# GENERATED from MProductCategory.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Productcategory
+    sql: |2
+      SELECT * FROM m_product_category pc
+        WHERE 1=1
+    title: Product Category
+    description: Product Categories
+    sql_alias: pc
+    joins:
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+    measures:
+      - name: count
+        type: count
+        drill_members:
+          - name
+    dimensions:
+      - name: ad_client_id
+        sql: ad_client_id
+        type: number
+        public: false
+      - name: m_product_category_id
+        title: Product Category ID
+        description: Product Category database primary key
+        sql: m_product_category_id
+        type: number
+        primary_key: true
+        public: true
+      - name: isdefault
+        sql: isdefault
+        type: string
+      - name: name
+        sql: name
+        type: string
+      - name: isactive
+        sql: isactive
+        type: string
+      - name: issummary
+        sql: issummary
+        type: string
+      - name: isselfservice
+        sql: isselfservice
+        type: string
+      - name: value
+        sql: value
+        type: string
+    pre_aggregations:
+      - name: main
+        type: rollup
+        measures:
+          - count
+        dimensions:
+          - Client.ad_client_id
+          - m_product_category_id
+          - name
+        refresh_key:
+          every: "1 day"
+        indexes:
+          - name: ad_client_idx
+            columns:
+              - Client.ad_client_id
+          - name: m_product_category_idx
+            columns:
+              - m_product_category_id

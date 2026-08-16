@@ -1,0 +1,52 @@
+# GENERATED from Locator.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Warehouselayout
+    sql: |2
+      SELECT 
+            l.ad_client_id, 
+            l.ad_org_id,
+            l.updated,
+            l.m_locator_id, 
+            l.value,
+            wh.name as m_warehouse_name
+            FROM m_locator l
+      left join m_warehouse wh ON (l.m_warehouse_id=wh.m_warehouse_id)
+      WHERE 1=1
+    joins:
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+    measures:
+      - name: count
+        type: count
+        sql: m_locator_id
+    dimensions:
+      - name: m_locator_id
+        title: Locator ID
+        description: Locator database primary key
+        sql: m_locator_id
+        type: number
+        primary_key: true
+        public: true
+      - name: ad_client_id
+        title: Client
+        sql: ad_client_id
+        type: number
+        public: false
+      - name: m_warehouse_name
+        sql: m_warehouse_name
+        type: string
+      - name: name
+        sql: value
+        type: string
+    pre_aggregations:

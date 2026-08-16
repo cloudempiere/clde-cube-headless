@@ -108,9 +108,10 @@ const MEMBER_LISTS = new Set([
  *
  * Braces matter here beyond style: YAML reads a value starting with `{` as a
  * flow mapping, so `time_dimension: {Orderfacts.dateordered}` parses as a map
- * with a null value rather than a member reference.
+ * with a null value rather than a member reference. `extends` has the same
+ * problem - `extends: {Businesspartner}` is a mapping, not a cube reference.
  */
-const MEMBER_SCALARS = new Set(['time_dimension']);
+const MEMBER_SCALARS = new Set(['time_dimension', 'extends']);
 
 function scalar(v) {
   if (isRef(v)) return `{${v[REF]}}`;
@@ -169,6 +170,11 @@ function emit(obj, indent, parentKey) {
       continue;
     }
 
+    // An empty array emits a bare key, which Cube rejects with "Unexpected
+    // input during yaml transpiling: null". These come from members whose list
+    // was entirely commented out in the JS.
+    if (Array.isArray(value) && value.length === 0) continue;
+
     // member lists -> bare dotted references
     if (MEMBER_LISTS.has(key) && Array.isArray(value)) {
       out.push(`${pad}${key}:`);
@@ -200,7 +206,7 @@ function emit(obj, indent, parentKey) {
     // { sql: `...` } wrappers (build_range_start, refresh_key)
     if (value && typeof value === 'object' && !isRef(value)) {
       // named collections: measures/dimensions/joins/pre_aggregations objects
-      const named = ['measures', 'dimensions', 'segments', 'joins', 'pre_aggregations', 'hierarchies'];
+      const named = ['measures', 'dimensions', 'segments', 'joins', 'pre_aggregations', 'hierarchies', 'indexes'];
       if (named.includes(key)) {
         out.push(`${pad}${key}:`);
         for (const [name, def] of Object.entries(value)) {

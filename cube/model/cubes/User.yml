@@ -1,0 +1,117 @@
+# GENERATED from User.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Approver
+    sql: |2
+      select 
+        ad_client_id,
+        ad_org_id,
+        updated,
+        ad_user_id,
+        value,
+        name,
+        firstname,
+        lastname,
+        isactive,
+        email,
+        phone,
+        c_bpartner_search_key,
+        c_bpartner_name,
+        c_bpartner_name2,
+        c_bpartner_created,
+        c_bpartner_updated,
+        c_bpartner_customer,
+        c_bpartner_vendor,
+        c_bpartner_employee,
+        ad_user_location_name from {User.sql()} apr
+    extends: User
+    title: Approver
+    description: All Approvers related information
+    sql_alias: apr
+  - name: User
+    sql: |2
+        SELECT 
+          u.ad_client_id,
+          u.ad_org_id,
+          u.updated,
+          u.ad_user_id,
+          u.value,
+          u.name,
+          u.firstname,
+          u.lastname,
+          u.isactive,
+          u.email,
+          u.phone,
+          bp.value AS c_bpartner_search_key,
+          bp.name AS c_bpartner_name,
+          bp.name2 AS c_bpartner_name2,
+          bp.created AS c_bpartner_created,
+          bp.updated AS c_bpartner_updated,
+          bp.iscustomer AS c_bpartner_customer,
+          bp.isvendor AS c_bpartner_vendor,
+          bp.isemployee AS c_bpartner_employee,
+          bploc.name ad_user_location_name
+        FROM ad_user u
+        LEFT JOIN c_bpartner bp ON u.c_bpartner_id = bp.c_bpartner_id
+        LEFT JOIN c_bpartner_location bploc ON u.c_bpartner_location_id = bploc.c_bpartner_location_id
+
+      WHERE 1=1
+    joins:
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+    title: Users
+    description: All Users related information
+    sql_alias: usr
+    measures:
+      - name: count
+        type: count
+        drill_members:
+          - name
+    dimensions:
+      - name: ad_client_id
+        title: Client
+        sql: ad_client_id
+        type: number
+        public: false
+      - name: ad_user_id
+        title: User ID
+        description: User database primary key
+        sql: ad_user_id
+        type: number
+        primary_key: true
+        public: true
+      - name: name
+        sql: name
+        type: string
+      - name: lastname
+        sql: lastname
+        type: string
+      - name: firstname
+        sql: firstname
+        type: string
+      - name: value
+        sql: value
+        type: string
+      - name: email
+        sql: email
+        type: string
+      - name: isactive
+        sql: isactive
+        type: string
+      - name: bpartner
+        sql: c_bpartner_name
+        type: string
+      - name: location
+        sql: ad_user_location_name
+        type: string
+    pre_aggregations:

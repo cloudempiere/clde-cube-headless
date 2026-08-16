@@ -1,0 +1,65 @@
+# GENERATED from CBankstatement.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Bankstatement
+    sql: "SELECT * FROM c_bankstatement bst"
+    title: Bank Statement
+    description: Bank Statement details
+    sql_alias: bst
+    joins:
+      - name: Client
+        relationship: many_to_one
+        sql: "{Bankstatement}.ad_client_id = {Client}.ad_client_id"
+      - name: Bankaccount
+        relationship: many_to_one
+        sql: "{Bankstatement}.c_bankaccount_id = {Bankaccount}.c_bankaccount_id"
+    measures:
+      - name: count
+        sql: c_bankstatement_id
+        type: count
+        drill_members:
+          - statementdate
+      - name: beginningbalance
+        sql: beginningbalance
+        type: sum
+      - name: endingbalance
+        sql: endingbalance
+        type: sum
+    dimensions:
+      - name: ad_client_id
+        title: Client
+        sql: ad_client_id
+        type: number
+        public: false
+      - name: c_bankstatement_id
+        title: Bank Statement ID
+        description: Bank Statement database primary key
+        sql: c_bankstatement_id
+        type: number
+        primary_key: true
+        public: true
+      - name: updated
+        title: Updated
+        sql: updated
+        type: time
+      - name: docstatus
+        sql: docstatus
+        type: string
+      - name: description
+        sql: description
+        type: string
+      - name: isapproved
+        sql: isapproved
+        type: string
+      - name: statementdate
+        sql: statementdate
+        type: time

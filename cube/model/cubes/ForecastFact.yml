@@ -1,0 +1,104 @@
+# GENERATED from ForecastFact.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Forecast
+    sql: |2
+      SELECT 
+          fl.ad_client_id, 
+          fl.ad_org_id, 
+          fl.created, 
+          fl.updated, 
+          f.name,
+          f.c_calendar_id,
+          f.c_year_id,
+          fl.c_period_id,
+          f.m_forecast_id,
+          fl.m_forecastline_id,
+          fl.m_product_id,
+          COALESCE(fl.qty,0) as qty,
+          COALESCE(fl.qtycalculated,0) as qtycalculated,
+          fl.m_warehouse_id,
+          fl.salesrep_id,
+          p.periodno,
+          p.startdate,
+          p.enddate
+      FROM m_forecast f
+      JOIN m_forecastline fl ON f.m_forecast_id=fl.m_forecast_id
+      JOIN c_period p ON p.c_period_id = fl.c_period_id
+      WHERE 1=1 
+      AND {FILTER_PARAMS.Forecast.date.filter('p.startdate')}
+    title: Forecast
+    description: All Forecast related information
+    sql_alias: frc
+    joins:
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+      - name: Organization
+        relationship: one_to_many
+        sql: "{CUBE}.ad_org_id = {Organization}.ad_org_id"
+      - name: Product
+        relationship: one_to_many
+        sql: "{CUBE}.m_product_id = {Product}.m_product_id"
+      - name: User
+        relationship: one_to_many
+        sql: "{CUBE}.salesrep_id = {User}.ad_user_id"
+    measures:
+      - name: count
+        title: Total Count
+        sql: m_forecastline_id
+        type: count
+      - name: qty
+        title: Quantity
+        sql: qty
+        type: sum
+      - name: qtycalculated
+        title: Quantity Calculated
+        sql: qtycalculated
+        type: sum
+    dimensions:
+      - name: ad_client_id
+        title: Client ID
+        description: Client database primary key
+        sql: ad_client_id
+        type: number
+        public: true
+      - name: ad_org_id
+        title: Org ID
+        sql: ad_org_id
+        type: number
+        public: false
+      - name: m_forecastline_id
+        title: Forecast Line ID
+        sql: m_forecastline_id
+        type: number
+        primary_key: true
+        public: false
+      - name: m_forecast_id
+        title: Forecast ID
+        sql: m_forecast_id
+        type: number
+        public: false
+      - name: m_product_id
+        title: Product ID
+        sql: m_product_id
+        type: number
+        public: false
+      - name: salesrep_id
+        title: SalesRep ID
+        sql: salesrep_id
+        type: number
+        public: false
+      - name: startdate
+        sql: startdate
+        type: time
+    pre_aggregations:

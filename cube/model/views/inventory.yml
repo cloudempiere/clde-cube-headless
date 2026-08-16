@@ -29,3 +29,9 @@ views:
       - join_path: Warehouse.DocBaseType
         prefix: true
         includes: [name]
+      # Translated document type. Warehouse.documenttype remains available and
+      # is the untranslated base name; this one resolves per security-context
+      # language via c_doctype_trl.
+      - join_path: Warehouse.Doctype
+        prefix: true
+        includes: [name, docbasetype]

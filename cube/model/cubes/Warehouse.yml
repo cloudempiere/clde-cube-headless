@@ -183,6 +183,19 @@ cubes:
     description: "All Client/Tenant related information"
     sql_alias: wms
     joins:
+      # Translated document type name. The fact keeps its own untranslated
+      # `documenttype` dimension - Cube 1.x forbids a cube from defining a
+      # member that references another cube - so the translated name reaches
+      # users through the views, prefixed as Doctype_name.
+      #
+      # many_to_one is safe here: Doctype is one row per doctype once its
+      # access_policy pins ad_language, and every shipment and movement in the
+      # database references a doctype within (tenant, 0), so nothing is dropped.
+      # Checked across tenants before wiring, because the same join on Locator
+      # silently removed 654 rows.
+      - name: Doctype
+        relationship: many_to_one
+        sql: "{CUBE}.c_doctype_id = {Doctype}.c_doctype_id"
       - name: Warehouselayout
         relationship: many_to_one
         sql: "{CUBE}.m_locator_id = {Warehouselayout}.m_locator_id"

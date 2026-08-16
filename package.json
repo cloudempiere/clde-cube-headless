@@ -2,7 +2,7 @@
   "name": "clde-cube-headless",
   "version": "0.0.1",
   "private": true,
-  "description": "Cube semantic layer over iDempiere. The live project is in cube/; this root holds the 0.28-era reference model.",
+  "description": "Cube semantic layer over iDempiere. The live project is cube/; legacy-0.28/ holds the pre-migration reference.",
   "comment": [
     "This file used to be the Cube 0.28.19 project scaffold, carrying",
     "  \"name\": \"cubejs-project-template\", \"template\": \"docker\",",
@@ -14,12 +14,12 @@
     "",
     "LAYOUT",
     "  cube/       the live Cube 1.7.19 project - model, config, compose, scripts",
-    "  schema/     the 0.28 model, READ ONLY, kept as the migration reference",
-    "  cube.js     the 0.28 config, READ ONLY, same purpose",
+    "  legacy-0.28/ the 0.28 model and config, READ ONLY, migration reference",
+    "  package.json this file",
     "",
-    "Run everything from cube/. Cube reads its model from cube/model, so the",
-    "0.28 schema/ at this level is inert - but do not start a server from the",
-    "repository root or it will pick up the old cube.js instead."
+    "Run everything from cube/.",
+    "The 0.28 cube.js and schema/ used to sit at this level, where a server started",
+    "here would have loaded them instead of cube/cube.js. They now live in legacy-0.28/."
   ],
   "scripts": {
     "dev": "echo 'Run from cube/: cd cube && docker compose up -d' && exit 1",

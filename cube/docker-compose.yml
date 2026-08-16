@@ -1,6 +1,13 @@
 services:
   cube:
-    image: cubejs/cube:latest
+    # PINNED. `latest` silently changes the runtime on any pull, and this model
+    # depends on behaviour specific to this version: rollup_lambda does not
+    # engage, access_policy templating works only in YAML, a query past
+    # build_range_start truncates instead of falling back to source, and
+    # type: boolean converts iDempiere 'Y'/'N' unaided. Upgrade deliberately and
+    # re-run scripts/validate.mjs each time. Note the tag carries a `v` prefix:
+    # cubejs/cube:1.7.19 does not exist, cubejs/cube:v1.7.19 does.
+    image: cubejs/cube:v1.7.19
     ports:
       - "4000:4000"      # REST/GraphQL API + Developer Playground
       - "15432:15432"    # Cube SQL API (Postgres wire protocol) - queries the MODEL

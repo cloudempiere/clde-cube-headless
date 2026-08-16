@@ -1,0 +1,51 @@
+-- Database-side prerequisites for the Cube read-only role.
+--
+--   psql -h localhost -p 5433 -U cube_readonly -d cloudempiere_dev -f scripts/bootstrap-db.sql
+--
+-- Run this on every environment. Without it the Warehouse Outbound segment
+-- fails on a clean database, and the error names shared memory rather than
+-- anything recognisable:
+--
+--   ERROR: could not resize shared memory segment "/PostgreSQL.NNNNNN"
+--          to 16777216 bytes: No space left on device
+--
+-- WHY IT HAPPENS
+--
+-- Postgres parallel query allocates a dynamic shared memory segment for its
+-- workers - tuple queues, hash tables, bitmap scans. With
+-- dynamic_shared_memory_type = posix that segment comes from /dev/shm, and
+-- Docker caps /dev/shm at 64 MB regardless of how much memory the container
+-- has. It is not memory pressure: the container reported 64M total with 3.8M
+-- in use while failing.
+--
+-- The Warehouse Outbound segment triggers it because filtering a raw indexed
+-- column across a five-branch UNION makes the planner choose a parallel path
+-- it was not choosing before.
+--
+-- WHY A ROLE SETTING
+--
+-- max_parallel_workers_per_gather is USERSET, so the role may set it on itself
+-- with no superuser rights, and it then applies to every new connection
+-- including the ones Cube's own pool opens. scripts/validate.mjs already sets
+-- it per session for its reference queries; this covers Cube itself.
+--
+-- Serial execution is usually the right call for these queries anyway - they
+-- are large analytical scans feeding pre-aggregation builds, not latency
+-- sensitive.
+--
+-- THE BETTER FIX, WHICH THIS DOES NOT REPLACE
+--
+-- Raise the database container's shared memory instead, which addresses the
+-- cause and lets parallel plans work:
+--
+--   docker run --shm-size=1g ...        # or shm_size: 1gb in compose
+--
+-- 1 GB is the usual recommendation for Postgres in Docker. Keep this file
+-- regardless: it is the portable fallback, and it is the only fix that helps
+-- if Cube ever points at RDS, where /dev/shm is sized from instance memory and
+-- the same symptom has a different cause.
+
+ALTER ROLE cube_readonly SET max_parallel_workers_per_gather = 0;
+
+-- Confirm on a NEW connection - session-level SHOW will not reflect it:
+--   SELECT rolname, rolconfig FROM pg_roles WHERE rolname = 'cube_readonly';

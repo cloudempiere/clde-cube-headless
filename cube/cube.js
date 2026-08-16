@@ -20,14 +20,34 @@
  */
 module.exports = {
   /**
-   * Tenant only. ad_language is deliberately NOT part of the app id: including
-   * it would compile a separate model and rollup set per language - 16 tenants
-   * x 5 languages = 80 variants - to vary labels from a 16,160-row table.
-   * Translations are handled by domain cubes whose access_policy filters
-   * ad_language at query time.
+   * CONSTANT, deliberately.
+   *
+   * contextToAppId keys the COMPILED MODEL cache. It must vary by everything
+   * that changes the model - and nothing here does. The model contains zero
+   * uses of COMPILE_CONTEXT and zero of SECURITY_CONTEXT; isolation is applied
+   * at QUERY time by access_policy and queryRewrite, which run per request
+   * regardless of this key.
+   *
+   * It used to return `CUBE_APP_${ad_client_id}`, which compiled sixteen
+   * byte-identical models and bought nothing.
+   *
+   * It also created a documented hazard. Cube requires scheduledRefreshContexts
+   * whenever the security context feeds contextToAppId, and warns that leaving
+   * it unset means "the security context will be undefined" during scheduled
+   * refresh. That was unset here. Nothing broke, because one build genuinely
+   * does serve every tenant - but only by accident of the model being uniform.
+   * A constant key makes that uniformity explicit instead of accidental, and
+   * removes the requirement rather than leaving it unmet.
+   *
+   * ISOLATION IS NOT AFFECTED. Rollups are shared across tenants by design -
+   * ad_client_id is a rollup dimension and filtering happens on read. That was
+   * already true with per-tenant app ids, and test-rollup-isolation asserts it:
+   * each tenant's rollup answer must equal that same tenant's source answer.
+   *
+   * If a cube ever varies by COMPILE_CONTEXT, this must become per-tenant again
+   * AND scheduledRefreshContexts must be declared alongside it.
    */
-  contextToAppId: ({ securityContext }) =>
-    `CUBE_APP_${securityContext?.ad_client_id ?? 'anon'}`,
+  contextToAppId: () => 'CUBE_APP_SHARED',
 
   /** Groups drive access_policy on the reference/domain cubes. */
   contextToGroups: ({ securityContext }) => {

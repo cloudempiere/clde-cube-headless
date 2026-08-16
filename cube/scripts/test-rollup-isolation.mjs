@@ -93,11 +93,26 @@ const pass = m => console.log(`  PASS  ${m}`);
 
 console.log('\n  tenant isolation through the rollup path\n');
 
-// 1. A token with no tenant claim must be refused even though the rollup
+// 1. A token with no tenant claim must get NO DATA, even though the rollup
 //    tables physically contain every tenant's rows.
+//
+//    Two different refusals are both correct, and which one occurs depends on
+//    the cube:
+//
+//      queryRewrite  throws, because a missing ad_client_id is an error
+//      access_policy returns an empty result - Cube's documented behaviour is
+//                    that "when you define access policies for specific groups,
+//                    access is automatically denied to all other groups", and a
+//                    claimless token yields no groups from contextToGroups
+//
+//    This asserted an error only, so once the fact cubes gained policies it
+//    started failing on a technicality while the security property held. The
+//    property being tested is that no rows come back; assert that instead.
 const anon = parse(await call('load', q('year'), token({ sub: 'attacker' })));
-if (anon.error) pass('claimless token denied on the rollup path');
-else fail(`claimless token returned ${total(anon)} rows worth of data`);
+const anonRows = anon.error ? 0 : total(anon);
+if (anon.error) pass('claimless token denied - queryRewrite refused it');
+else if (anonRows === 0) pass('claimless token denied - policy matched no group, empty result');
+else fail(`claimless token LEAKED ${anonRows.toLocaleString()} rows worth of data`);
 
 // 2. Each tenant's rollup answer must equal that tenant's own source answer.
 const totals = {};

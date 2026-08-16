@@ -1,0 +1,28 @@
+{
+  "name": "Manager sees cost of goods; member_level policies UNION across groups",
+  "note": "Holds the member_level pilot on Orderfacts, and records behaviour the documentation does not state.\n\ncontextToGroups returns ['tenant_user', ...roles], so a manager belongs to BOTH the group that EXCLUDES cost/margin and the group that includes everything. The two policies UNION: the manager gets the real value. Had they intersected, the exclusion would have won and the manager policy would be useless - which is why this is asserted rather than assumed.\n\nTWO LIMITATIONS FOUND BY MEASURING, both of which matter more than the feature:\n\n1. A restricted user gets 0, NOT an error. linepricelimit returns 0 for a plain user and 3,080,145.81 for a manager over the same window. A dashboard renders 'COGS: 0', which is indistinguishable from a real zero. This is the same silent-wrongness shape as every other defect found in this model.\n\n2. member_level does NOT hide members from /v1/meta. A restricted user still sees all 17 Orderfacts measures listed, so linepricelimit appears in Playground and BI field pickers and simply returns 0 when picked.\n\nmember_masking was tried as a remedy and made it worse: adding mask.sql plus member_masking dropped the MANAGER to 0 as well, removing access that worked. Reverted.",
+  "cubeQuery": {
+    "measures": [
+      "Orderfacts.linepricelimit"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Orderfacts.dateordered",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-03-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT round(sum(CASE WHEN charat(dt.docbasetype::character varying,3)::text='C' THEN (ol.pricelimit*-1)*ol.QtyOrdered ELSE ol.pricelimit*ol.QtyOrdered END)::numeric,2) AS value FROM c_order o JOIN c_orderline ol ON ol.c_order_id=o.c_order_id JOIN c_doctype dt ON o.c_doctypetarget_id=dt.c_doctype_id WHERE o.ad_client_id=1000026 AND o.processed='Y' AND o.isproposal='N' AND o.dateordered >= DATE '2026-01-01' AND o.dateordered < DATE '2026-04-01'",
+  "tolerance": 0.0001,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "manager"
+    ]
+  }
+}

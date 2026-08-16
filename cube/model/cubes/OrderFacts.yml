@@ -340,8 +340,36 @@ cubes:
     # the policy is additive while it is being proven. Removing the global
     # backstop is a separate decision: a cube with no policy would then be
     # entirely unprotected, and that failure is silent.
+    # PILOT - the shape is proposed, the membership rule is yours to set.
+    #
+    # Cost and margin are the first members in this model with a reason to be
+    # restricted: linepricelimit is cost of goods, and marginamt/margin/markup
+    # derive from it. A salesperson seeing their own order lines does not
+    # normally see what the company paid.
+    #
+    # `discount` is deliberately left visible - it is usually quoted to the
+    # customer anyway, so hiding it protects nothing and breaks ordinary
+    # reporting.
+    #
+    # HOW THE TWO POLICIES COMBINE IS TESTED, NOT ASSUMED. contextToGroups
+    # returns ['tenant_user', ...roles], so a manager is in BOTH groups and the
+    # documentation does not say whether that unions or intersects. If it
+    # intersected, the exclusion below would still hide cost from managers and
+    # the second policy would be useless. See scripts/cases/orderfacts-member-level.json.
     access_policy:
       - group: tenant_user
+        member_level:
+          excludes:
+            - linepricelimit
+            - marginamt
+            - margin
+            - markup
+        row_level:
+          filters:
+            - member: ad_client_id
+              operator: equals
+              values: ["{ securityContext.ad_client_id }"]
+      - group: manager
         member_level:
           includes: "*"
         row_level:

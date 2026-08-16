@@ -30,10 +30,7 @@ cube(`Businesspartner`, {
       bp.isactive,
       bp.created,
       bp.updated,
-      CASE 
-        WHEN bp.iscustomer='Y' THEN 'true'
-        ELSE 'false'
-      END as iscustomer,
+      bp.iscustomer,
       bp.isvendor,
       bp.isemployee AS bpartner_employee,
       bpg.value AS bpartner_group_search_key,

@@ -41,13 +41,8 @@ cube(`Logisticfacts`, {
       dt.docbasetype,
       dt.docbasetype AS c_docbasetype_name_code,
       io.docstatus,
-      CASE 
-        WHEN io.processed='Y' THEN 'true'
-        ELSE 'false'
-      END as processed,
-      CASE 
-        WHEN dt.issotrx='Y' THEN 'true'
-        ELSE 'false'  END as issotrx,
+      io.processed,
+      dt.issotrx,
       CASE
         WHEN io.deliveryviarule='S' AND io.driver_id is not NULL THEN 'true'
         ELSE 'false'  END as isFreightPlanned,
@@ -55,14 +50,11 @@ cube(`Logisticfacts`, {
       io.c_bpartner_id,
       CASE WHEN io.IsDropShip='Y' THEN io.dropship_location_id
       ELSE io.c_bpartner_location_id END as c_bpartner_location_id,
-      CASE WHEN io.isdropship='Y' THEN 'true'
-      ELSE 'false' END as isdropship,
+      io.isdropship,
       io.dropship_location_id,
       io.docstatus AS c_docstatus_name_code,
       COALESCE(dr.lastname,'Empty') as  driver_name,
-      CASE 
-      WHEN io.isshipped='Y' THEN 'true'
-      ELSE 'false'  END as isshipped,
+      io.isshipped,
       COALESCE (srio.name, srbpl.name) as shippingregion,
       io.shipdate,
       io.DeliveryViaRule AS deliveryviarule_code,

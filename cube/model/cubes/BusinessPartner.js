@@ -234,9 +234,13 @@ cube(`Businesspartner`, {
       dimensions: [Client.ad_client_id, Businesspartner.isCustomer],
       timeDimension: Businesspartner.c_bpartner_created,
       granularity: `day`,
+      // No incremental: these are master-data cubes (c_bpartner 128,930 rows,
+      // m_product_category 1,488) that rebuild fully in seconds. Cube rejects
+      // incremental on a non-partitioned rollup, and the rejection aborts the
+      // WHOLE refresh scheduler run - so this one flag stopped every other
+      // pre-aggregation in the model from refreshing on schedule.
       refresh_key: {
         every: `1 day`,
-        incremental: true,
       },
     },
 
@@ -248,9 +252,13 @@ cube(`Businesspartner`, {
         Businesspartner.value, Businesspartner.region, Businesspartner.contactperson, Businesspartner.bpgroup],
       timeDimension: Businesspartner.c_bpartner_created,
       granularity: `day`,
+      // No incremental: these are master-data cubes (c_bpartner 128,930 rows,
+      // m_product_category 1,488) that rebuild fully in seconds. Cube rejects
+      // incremental on a non-partitioned rollup, and the rejection aborts the
+      // WHOLE refresh scheduler run - so this one flag stopped every other
+      // pre-aggregation in the model from refreshing on schedule.
       refresh_key: {
         every: `1 day`,
-        incremental: true,
       },
       indexes: {
         ad_client_idx: {

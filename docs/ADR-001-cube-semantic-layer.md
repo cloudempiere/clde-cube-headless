@@ -179,6 +179,84 @@ nothing hardcoded, one compiled model, one rollup set.
 - Two translation joins were `JOIN` rather than `LEFT JOIN`, silently dropping
   order lines with no translation. Correcting them recovered 12 rows.
 
+### Verified constraints, second pass (2026-08-16)
+
+Every one of these was found by running the system, and **none produced an
+error**. Each returned a plausible number, or nothing at all.
+
+**8. A rollup matches only when every filtered member is one of its dimensions.**
+
+`queryRewrite` filtered `Client.ad_client_id` while the rollups were keyed on
+`<Cube>.ad_client_id`. No rollup ever matched, so every query read the 11.2M-row
+source and returned correct numbers. Adding per-cube `access_policy` later
+reintroduced the same fault from the other side, because the policy filters the
+cube's own column. **Both members must be rollup dimensions while both filters
+exist.**
+
+**9. Cube does not read outside a rollup's build range.**
+
+The documentation is explicit: results outside `build_range_start`/`_end` are
+not returned, which "can lead to an empty result set". It does not fall back to
+source. With the floor moved to 2015 as an optimisation, tenant 1000015 asked
+for 2010-2026 and received 4,391,856 instead of 4,479,064; asked for 2010-2012
+it received **0** instead of 14,566. **`build_range_start` must equal the cube's
+own SQL floor**, and `scripts/verify-rollups.mjs` now asserts that from source
+rather than by probing, because a truncating configuration answers correctly
+until older data arrives.
+
+**10. `rollup_lambda` with `union_with_source_data` does not engage here.**
+
+The documented remedy for constraint 9. Implemented and tested against
+Orderfacts with the range cut to 2023: the planner kept selecting the plain
+rollup, the lambda appeared in no log line, and 2010-2012 still returned 0.
+Not shipped. The backfill was made tractable a different way - **yearly instead
+of monthly partitioning**, cutting a cold build from ~2,244 partitions
+(~12 hours) to ~189 (~1 hour) with no data excluded.
+
+**11. Segments compare the raw column, not the dimension.**
+
+Three of five segment-bearing cubes were broken. `Orderfacts.Sales` compared
+`= 'true'` against a column holding `'Y'`/`'N'` and returned **zero rows for
+years**. `Cashflowplan` referenced a column renamed during the translation
+rewiring. `Factacct` compared a column never selected in the cube SQL. Measure
+tests stayed green throughout all three.
+
+**12. `type: boolean` converts iDempiere's `'Y'`/`'N'` unaided.**
+
+Proven by `Businesspartner.isCustomer`, which reads a `character` column with no
+CASE and returns `'true'`/`'false'` identically to the CASE-based dimensions.
+Twenty such conversions were redundant. Two were not and stayed: one maps an
+arbitrary product attribute, the other is a compound business rule.
+
+**13. Model files cannot read `process.env`.**
+
+A probe returned `NO_PROCESS_ENV`. Only `cube.js` sees the environment, so any
+value the model needs must be a literal or arrive via `COMPILE_CONTEXT`.
+
+**14. `contextToAppId` must be constant unless the model actually varies.**
+
+It keyed on `ad_client_id`, compiling sixteen byte-identical models. Cube also
+requires `scheduledRefreshContexts` whenever the security context feeds
+`contextToAppId`, warning the context is otherwise undefined during refresh -
+that was unset. Nothing broke, because one build genuinely serves every tenant,
+but only by accident of the model being uniform. Now constant.
+
+**15. `access_policy` denies by default - but only where it exists.**
+
+"When you define access policies for specific groups, access is automatically
+denied to all other groups." Cubes with **no** policy are unaffected and stay
+fully readable. Fifteen cubes still have none, so `queryRewrite` cannot be
+removed yet - see the warning at the top of `cube/cube.js`.
+
+### Verification harness
+
+19 cases in `cube/scripts/cases/`, each comparing Cube's answer against
+reference SQL run directly on Postgres - the only check independent of Cube's
+planner. There is no bypass through the query API: rollup coverage is total, so
+asking the same question twice simply answers from the rollup twice.
+
+Covering measures, segments, a credit-memo sign flip and view join fan-out.
+Nine of forty-four entities; four views remain uncovered.
 
 
 ### Tenant isolation: the rule

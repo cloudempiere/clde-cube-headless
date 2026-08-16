@@ -14,9 +14,26 @@
  * so a token that authenticated but carried no claim received NO filter and
  * every tenant's rows. Here a missing claim throws instead.
  *
- * DESTINATION: per-cube access_policy in YAML, which additionally gives
- * member-level control and masking. queryRewrite is the interim, not the end
- * state - see docs/ADR-001.
+ * DO NOT REMOVE queryRewrite YET. THIS IS THE ONE THING PROTECTING 15 CUBES.
+ *
+ * All seven FACT cubes now carry their own access_policy, which makes it
+ * tempting to delete this as superseded. It is not. Cube's rule is that
+ * "when you define access policies for specific groups, access is
+ * automatically denied to all other groups" - and that deny-by-default applies
+ * ONLY to cubes that HAVE a policy.
+ *
+ * Fifteen cubes have none: Businesspartner, MProduct, User, AccountingFact,
+ * Client, Doctype, Organization, Storage, Session, Locator, ForecastFact,
+ * MProductCategory, CBank, CBankaccount, CBankstatement. For those, this
+ * function is the entire isolation story. Removing it makes every one of them
+ * readable across all sixteen tenants, with no error and nothing in the logs.
+ *
+ * Safe to remove only once every cube reachable by a query either carries a
+ * policy or is deliberately classified as non-tenant data. Until then both
+ * layers apply and agree; scripts/test-rollup-isolation.mjs asserts the result.
+ *
+ * DESTINATION: per-cube access_policy everywhere, which additionally gives
+ * member-level control and masking - see docs/ADR-001.
  */
 module.exports = {
   /**

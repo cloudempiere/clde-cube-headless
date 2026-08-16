@@ -6,6 +6,13 @@
 # compiled model, one rollup set, and adding a language is an INSERT.
 #
 # Replaces 24 inline rv_ad_reference_trl joins that hardcoded a language.
+#
+# The label is qualified with {CUBE}. Unqualified COALESCE(name, name_base)
+# compiles and works for ONE domain at a time, then fails the moment a query
+# selects labels from TWO of them - "column reference name is ambiguous" -
+# because every domain subquery exposes the same two column names. Orderfacts
+# joins four of these, so asking for a delivery rule and an invoice rule
+# together was enough to break it.
 
 cubes:
   # ad_reference_id 151 - used by Orderfacts, Quotefacts
@@ -46,7 +53,7 @@ cubes:
       - name: name
         title: Delivery Rule
         description: Translated label; falls back to the base record when no translation exists
-        sql: "COALESCE(name, name_base)"
+        sql: "COALESCE({CUBE}.name, {CUBE}.name_base)"
         type: string
     measures:
       - name: count
@@ -98,7 +105,7 @@ cubes:
       - name: name
         title: Invoice Rule
         description: Translated label; falls back to the base record when no translation exists
-        sql: "COALESCE(name, name_base)"
+        sql: "COALESCE({CUBE}.name, {CUBE}.name_base)"
         type: string
     measures:
       - name: count
@@ -143,7 +150,7 @@ cubes:
       - name: name
         title: Order Line Status
         description: Translated label; falls back to the base record when no translation exists
-        sql: "COALESCE(name, name_base)"
+        sql: "COALESCE({CUBE}.name, {CUBE}.name_base)"
         type: string
     measures:
       - name: count
@@ -188,7 +195,7 @@ cubes:
       - name: name
         title: Lost Sales Reason
         description: Translated label; falls back to the base record when no translation exists
-        sql: "COALESCE(name, name_base)"
+        sql: "COALESCE({CUBE}.name, {CUBE}.name_base)"
         type: string
     measures:
       - name: count
@@ -233,7 +240,7 @@ cubes:
       - name: name
         title: Document Status
         description: Translated label; falls back to the base record when no translation exists
-        sql: "COALESCE(name, name_base)"
+        sql: "COALESCE({CUBE}.name, {CUBE}.name_base)"
         type: string
     measures:
       - name: count
@@ -278,7 +285,7 @@ cubes:
       - name: name
         title: Document Base Type
         description: Translated label; falls back to the base record when no translation exists
-        sql: "COALESCE(name, name_base)"
+        sql: "COALESCE({CUBE}.name, {CUBE}.name_base)"
         type: string
     measures:
       - name: count
@@ -323,7 +330,7 @@ cubes:
       - name: name
         title: Delivery Via Rule
         description: Translated label; falls back to the base record when no translation exists
-        sql: "COALESCE(name, name_base)"
+        sql: "COALESCE({CUBE}.name, {CUBE}.name_base)"
         type: string
     measures:
       - name: count
@@ -368,7 +375,7 @@ cubes:
       - name: name
         title: Account Type
         description: Translated label; falls back to the base record when no translation exists
-        sql: "COALESCE(name, name_base)"
+        sql: "COALESCE({CUBE}.name, {CUBE}.name_base)"
         type: string
     measures:
       - name: count
@@ -413,7 +420,7 @@ cubes:
       - name: name
         title: Bank Account Type
         description: Translated label; falls back to the base record when no translation exists
-        sql: "COALESCE(name, name_base)"
+        sql: "COALESCE({CUBE}.name, {CUBE}.name_base)"
         type: string
     measures:
       - name: count
@@ -458,7 +465,7 @@ cubes:
       - name: name
         title: Cash Flow Type
         description: Translated label; falls back to the base record when no translation exists
-        sql: "COALESCE(name, name_base)"
+        sql: "COALESCE({CUBE}.name, {CUBE}.name_base)"
         type: string
     measures:
       - name: count
@@ -503,7 +510,7 @@ cubes:
       - name: name
         title: Open Item Aging
         description: Translated label; falls back to the base record when no translation exists
-        sql: "COALESCE(name, name_base)"
+        sql: "COALESCE({CUBE}.name, {CUBE}.name_base)"
         type: string
     measures:
       - name: count

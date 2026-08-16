@@ -91,7 +91,7 @@ const body = DOMAINS.map(([id, name, title, users], i) => `
       - name: name
         title: ${title}
         description: Translated label; falls back to the base record when no translation exists
-        sql: "COALESCE(name, name_base)"
+        sql: "COALESCE({CUBE}.name, {CUBE}.name_base)"
         type: string
     measures:
       - name: count

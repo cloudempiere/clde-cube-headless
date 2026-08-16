@@ -1,0 +1,32 @@
+{
+  "name": "Two domain labels in one query resolve without ambiguity",
+  "note": "Regression case for a MODEL-WIDE bug. Every domain cube in reference_domains.yml defined its label as unqualified COALESCE(name, name_base). That works for ONE domain at a time and fails the moment a query selects labels from TWO, because every domain subquery exposes the same two column names:\n\n    Error: column reference \"name\" is ambiguous\n\nOrderfacts joins four of these cubes, so asking for a delivery rule and an invoice rule together - an ordinary dashboard question - was enough to break it. All 11 labels are now qualified with {CUBE}, and gen-reference-domains.mjs is fixed so regeneration cannot reintroduce it.\n\nThe total also confirms the domain joins lose no rows: 47,237 equals a plain Orderfacts.linecount over the same window, so every order line finds both its delivery rule and its invoice rule.",
+  "cubeQuery": {
+    "measures": [
+      "Orderfacts.linecount"
+    ],
+    "dimensions": [
+      "DeliveryRule.name",
+      "InvoiceRule.name"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Orderfacts.dateordered",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-03-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_order o JOIN c_orderline ol ON ol.c_order_id=o.c_order_id WHERE o.ad_client_id=1000026 AND o.processed='Y' AND o.isproposal='N' AND o.dateordered >= DATE '2026-01-01' AND o.dateordered < DATE '2026-04-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

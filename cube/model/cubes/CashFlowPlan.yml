@@ -95,10 +95,10 @@ cubes:
         relationship: many_to_one
         sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
       - name: Organization
-        relationship: one_to_many
+        relationship: many_to_one
         sql: "{CUBE}.ad_org_id = {Organization}.ad_org_id"
       - name: Businesspartner
-        relationship: one_to_many
+        relationship: many_to_one
         sql: "{CUBE}.c_bpartner_id = {Businesspartner}.c_bpartner_id"
       - name: Product
         relationship: one_to_many

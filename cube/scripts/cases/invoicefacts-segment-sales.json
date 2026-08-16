@@ -1,0 +1,31 @@
+{
+  "name": "Invoicefacts Sales segment selects issotrx doctypes only, tenant-scoped",
+  "note": "Segment coverage. Segments compare the RAW column produced by the cube SQL, not the dimension, so a cube whose CASE lives in the dimension instead of the SQL has segments that silently match nothing - which is exactly what had happened to Orderfacts.Sales (0 rows vs 86,370). This cube keeps its CASE in the SQL so the segment works today; the case exists so that removing the CASE - the natural boolean cleanup, since type: boolean converts 'Y'/'N' unaided - cannot break it unnoticed. Measure-level cases would all stay green. Note issotrx here comes from c_doctype (dt.issotrx), not from the invoice.",
+  "cubeQuery": {
+    "measures": [
+      "Invoicefacts.linecount"
+    ],
+    "segments": [
+      "Invoicefacts.Sales"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Invoicefacts.dateinvoiced",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_invoice i JOIN c_invoiceline il ON il.c_invoice_id=i.c_invoice_id JOIN c_doctype dt ON i.c_doctype_id=dt.c_doctype_id WHERE i.ad_client_id=1000026 AND dt.issotrx='Y' AND i.dateinvoiced >= DATE '2026-01-01' AND i.dateinvoiced < DATE '2026-09-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

@@ -1,0 +1,216 @@
+# GENERATED from LogisticFacts.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Shipprice
+    sql: |2
+      select m_inout_id, totallinesx from m_inout io
+              JOIN LATERAL get_inout_totallines(io.M_InOut_ID,0) totallinesx ON true
+    measures:
+      - name: totallinesx
+        sql: totallinesx
+        type: sum
+    dimensions:
+      - name: m_inout_id
+        title: Shipent ID
+        description: Shipment database primary key
+        sql: m_inout_id
+        type: number
+        primary_key: true
+        public: true
+  - name: Logisticfacts
+    sql: |2
+        SELECT 
+        io.ad_client_id,
+        io.ad_org_id,
+        io.m_inout_id,
+        io.m_warehouse_id,
+        'Shipment' as ad_table,
+        io.movementdate AS docdate,
+        io.created,
+        io.updated,
+        io.documentno,
+        io.c_doctype_id,
+        dt.name as c_doctype_name,
+        dt.docbasetype,
+        dt.docbasetype AS c_docbasetype_name_code,
+        io.docstatus,
+        io.processed,
+        dt.issotrx,
+        CASE
+          WHEN io.deliveryviarule='S' AND io.driver_id is not NULL THEN 'true'
+          ELSE 'false'  END as isFreightPlanned,
+        io.salesrep_id,
+        io.c_bpartner_id,
+        CASE WHEN io.IsDropShip='Y' THEN io.dropship_location_id
+        ELSE io.c_bpartner_location_id END as c_bpartner_location_id,
+        io.isdropship,
+        io.dropship_location_id,
+        io.docstatus AS c_docstatus_name_code,
+        COALESCE(dr.lastname,'Empty') as  driver_name,
+        io.isshipped,
+        COALESCE (srio.name, srbpl.name) as shippingregion,
+        io.shipdate,
+        io.DeliveryViaRule AS deliveryviarule_code,
+        io.M_ShipperPickupTypes_ID,
+        pstio.name as pickuptypes,
+        ROUND(io.weight,1) as weight,
+        prices.totallines,
+        shpr.name as m_shipper_name
+
+      FROM M_InOut io    
+      LEFT JOIN c_bpartner_location bpl ON bpl.c_bpartner_location_id = io.c_bpartner_location_id
+      LEFT JOIN M_Shipper shpr ON shpr.M_Shipper_id = io.M_Shipper_id
+      LEFT JOIN ad_user dr ON io.driver_id = dr.ad_user_id
+      LEFT JOIN c_shippingregion srio ON (srio.c_shippingregion_id=io.c_shippingregion_id)
+      LEFT JOIN c_shippingregion srbpl ON (srbpl.c_shippingregion_id=bpl.c_shippingregion_id)
+      LEFT JOIN M_ShipperPickupTypes pstio ON (pstio.M_ShipperPickupTypes_ID=io.M_ShipperPickupTypes_ID)
+      LEFT JOIN c_doctype dt ON dt.C_Doctype_ID = io.C_Doctype_ID
+
+      LEFT JOIN LATERAL (SELECT SUM(ROUND(COALESCE(ol.PriceActual*iol.MovementQty,0), 2)) AS totallines FROM M_InOutLine iol JOIN C_OrderLine ol ON ol.C_OrderLine_ID = iol.C_OrderLine_ID 
+      WHERE iol.M_InOut_ID =io.M_InOut_ID) as prices ON true AND 1=1 AND {FILTER_PARAMS.Logisticfacts.date.filter('io.shipdate')}
+      WHERE io.shipdate >= DATE '2000-01-01' AND io.shipdate < CURRENT_DATE + INTERVAL '1 year'
+    joins:
+      - name: DocumentStatus
+        relationship: many_to_one
+        sql: "{CUBE}.c_docstatus_name_code = {DocumentStatus}.value"
+      - name: DocBaseType
+        relationship: many_to_one
+        sql: "{CUBE}.c_docbasetype_name_code = {DocBaseType}.value"
+      - name: DeliveryViaRule
+        relationship: many_to_one
+        sql: "{CUBE}.deliveryviarule_code = {DeliveryViaRule}.value"
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+      - name: Organization
+        relationship: one_to_many
+        sql: "{CUBE}.ad_org_id = {Organization}.ad_org_id"
+      - name: Businesspartner
+        relationship: many_to_one
+        sql: "{CUBE}.c_bpartner_location_id = {Businesspartner}.c_bpartner_location_id"
+      - name: Dropshipcustomers
+        relationship: many_to_one
+        sql: "{CUBE}.dropship_location_id = {Dropshipcustomers}.c_bpartner_location_id"
+    title: Logistic Fact
+    description: Logistic Plannning related information
+    sql_alias: log
+    measures:
+      - name: shipmentcount
+        title: Shipping Count
+        sql: m_inout_id
+        type: count
+      - name: freightstopunloads
+        title: Unload Count
+        description: Number of delivered shipments at customer location
+        sql: c_bpartner_location_id
+        type: countDistinctApprox
+      - name: freightlinenetamt
+        title: Shipment Value
+        description: Value of shipment
+        sql: totallines
+        type: sum
+      - name: freightweight
+        title: Shipment Weight
+        description: Weight of Shipment
+        sql: weight
+        type: sum
+    dimensions:
+      - name: ad_client_id
+        title: "Client/Tenant"
+        sql: ad_client_id
+        type: number
+        public: false
+      - name: ad_org_id
+        title: Organization ID
+        sql: ad_org_id
+        type: number
+        public: false
+      - name: m_inout_id
+        title: Shipent ID
+        description: Shipment database primary key
+        sql: m_inout_id
+        type: number
+        primary_key: true
+        public: true
+      - name: documentno
+        title: DocumentNo
+        sql: documentno
+        type: string
+      - name: driver_name
+        title: Driver
+        sql: driver_name
+        type: string
+      - name: isshipped
+        title: Shipped
+        sql: isshipped
+        type: boolean
+      - name: shipdate
+        title: Date Plan Ship
+        sql: shipdate
+        type: time
+      - name: c_docbasetype_name
+        title: Document Base Type
+        sql: c_docbasetype_name
+        type: string
+      - name: documenttype
+        title: Document Type
+        sql: c_doctype_name
+        type: string
+      - name: deliveryviarule
+        title: Delivery Via Rule
+        sql: deliveryviarule
+        type: string
+      - name: issotrx
+        sql: issotrx
+        type: boolean
+      - name: isdropship
+        title: Transaction is Dropship
+        sql: isdropship
+        type: boolean
+      - name: c_bpartner_location_id
+        title: Bpartner Location ID
+        sql: c_bpartner_location_id
+        type: string
+      - name: pickuptypes
+        title: Shipper Pickup Types
+        sql: pickuptypes
+        type: string
+      - name: isfreightplanned
+        title: Document is planned in Freight Plan
+        sql: isFreightPlanned
+        type: boolean
+      - name: m_shipper_name
+        title: Shipper
+        description: "Name of the Shipper (can be external, internal)"
+        sql: m_shipper_name
+        type: string
+    pre_aggregations:
+      - name: byMonth
+        type: rollup
+        measures:
+          - Logisticfacts.shipmentcount
+          - Logisticfacts.freightstopunloads
+          - Logisticfacts.freightlinenetamt
+          - Logisticfacts.freightweight
+        dimensions:
+          - Client.ad_client_id
+        time_dimension: Logisticfacts.shipdate
+        granularity: day
+        partition_granularity: year
+        build_range_start:
+          sql: "SELECT DATE '2000-01-01'"
+        build_range_end:
+          sql: "SELECT CURRENT_DATE + INTERVAL '1 year'"
+        refresh_key:
+          every: "1 day"
+          incremental: true
+          update_window: "90 day"

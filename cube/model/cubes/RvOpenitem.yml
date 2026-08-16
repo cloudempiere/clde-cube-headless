@@ -88,17 +88,31 @@ cubes:
       - name: Client
         relationship: many_to_one
         sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+      # many_to_one: many facts map to ONE of these. Verified unique before
+      # switching - Cube TRUSTS the target's primary key in this direction,
+      # and a false key is what made Businesspartner inflate Invoices 126x.
+      # ad_org 86/86, m_product 273,367/273,367, c_bpartner one row per
+      # partner since the address split.
       - name: Organization
-        relationship: one_to_many
+        relationship: many_to_one
         sql: "{CUBE}.ad_org_id = {Organization}.ad_org_id"
+      # many_to_one: many facts map to ONE of these. Verified unique before
+      # switching - Cube TRUSTS the target's primary key in this direction,
+      # and a false key is what made Businesspartner inflate Invoices 126x.
+      # ad_org 86/86, m_product 273,367/273,367, c_bpartner one row per
+      # partner since the address split.
       - name: Businesspartner
-        relationship: one_to_many
+        relationship: many_to_one
         sql: "{CUBE}.c_bpartner_id = {Businesspartner}.c_bpartner_id"
+      # many_to_one, verified: ad_user 236,427/236,427 and c_bankaccount
+      # 132/132, and neither cube adds a fanning join.
       - name: User
-        relationship: one_to_many
+        relationship: many_to_one
         sql: "{CUBE}.salesrep_id = {User}.ad_user_id"
+      # many_to_one, verified: ad_user 236,427/236,427 and c_bankaccount
+      # 132/132, and neither cube adds a fanning join.
       - name: Bankaccount
-        relationship: one_to_many
+        relationship: many_to_one
         sql: "{CUBE}.c_bankaccount_id = {Bankaccount}.c_bankaccount_id"
     segments:
       - name: OpenItemsSales

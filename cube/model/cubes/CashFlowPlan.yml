@@ -28,6 +28,11 @@ cubes:
          cpl.Line,
          COALESCE(cpl.c_bpartner_id,cp.c_bpartner_id) AS c_bpartner_id,
          cpl.c_charge_id,
+         -- Required by the Product join below, which reads {CUBE}.m_product_id.
+         -- It was only ever used inside a LEFT JOIN condition, never selected, so
+         -- any query touching Cashflowplan -> Product failed outright with
+         -- "column cflw_key_cflw.m_product_id does not exist".
+         cpl.m_product_id,
          CASE WHEN cp.issotrx = 'Y'::bpchar THEN cpl.linetotalamt ELSE (cpl.linetotalamt)*'-1'::INTEGER::NUMERIC END AS cashamt,
          cpl.linetotalamt AS cashamt_abs,
          cp.cashflowtype,
@@ -100,8 +105,13 @@ cubes:
       - name: Businesspartner
         relationship: many_to_one
         sql: "{CUBE}.c_bpartner_id = {Businesspartner}.c_bpartner_id"
+      # many_to_one: many facts map to ONE of these. Verified unique before
+      # switching - Cube TRUSTS the target's primary key in this direction,
+      # and a false key is what made Businesspartner inflate Invoices 126x.
+      # ad_org 86/86, m_product 273,367/273,367, c_bpartner one row per
+      # partner since the address split.
       - name: Product
-        relationship: one_to_many
+        relationship: many_to_one
         sql: "{CUBE}.m_product_id = {Product}.m_product_id"
     segments:
       - name: Expenses

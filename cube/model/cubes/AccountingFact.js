@@ -9,6 +9,11 @@ cube(`Factacct`, {
     fa.updated,
     fa.updatedby,
     fa.dateacct,
+    -- Required by the ActualAccunting / NotActAccounting segments, which compare
+    -- {CUBE}.postingtype. It was never selected, so both segments failed with
+    -- "column factacct.postingtype does not exist". The compared value 'A' was
+    -- always correct - A covers 15.6M rows, alongside S, E and B.
+    fa.postingtype,
     to_char(fa.dateacct, 'YYYY-MM'::text) AS finyear_mth,
     to_char(fa.dateacct, '"FY"YYYY'::text) AS finyear,
     fa.c_project_id,

@@ -111,10 +111,10 @@ order by cpl.DateTrx ASC
 
   segments: {
     Expenses: {
-      sql: `${CUBE}.AccountType = 'Expense'`
+      sql: `${CUBE}.accounttype_code = 'E'`
     },
     Revenue: {
-      sql: `${CUBE}.AccountType = 'Revenue'`
+      sql: `${CUBE}.accounttype_code = 'R'`
     }
   },
 

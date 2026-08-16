@@ -1,0 +1,31 @@
+{
+  "name": "Factacct ActualAccunting segment selects postingtype A, tenant-scoped",
+  "note": "Segment coverage for the general ledger. postingtype='A' is correct here - the column genuinely holds A (15.6M rows), S, E and B - so unlike the Cashflowplan and Orderfacts segments this one already worked. The case exists to keep it that way. One month only: fact_acct is the largest table in the model.",
+  "cubeQuery": {
+    "measures": [
+      "Factacct.count"
+    ],
+    "segments": [
+      "Factacct.ActualAccunting"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Factacct.dateacct",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-01-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM fact_acct fa JOIN c_elementvalue ev ON fa.account_id=ev.c_elementvalue_id JOIN c_acctschema sch ON fa.c_acctschema_id=sch.c_acctschema_id WHERE fa.ad_client_id=1000026 AND fa.postingtype='A' AND fa.dateacct >= DATE '2026-01-01' AND fa.dateacct < DATE '2026-02-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

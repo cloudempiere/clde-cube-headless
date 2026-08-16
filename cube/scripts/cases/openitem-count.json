@@ -1,0 +1,28 @@
+{
+  "name": "Openitem.count equals unpaid invoice rows in range, tenant-scoped",
+  "note": "The reference mirrors the cube's join chain exactly, including two joins that can MULTIPLY rows and therefore change the count: c_invoicepayschedule (one row per instalment on an invoice) and c_acctschema (one row per accounting schema matching client+org). A simplified count(*) on c_invoice would not match, and that is not a discrepancy - it is what the cube actually counts. Openitem also has no docstatus filter; ispaid='N' is the only gate.",
+  "cubeQuery": {
+    "measures": [
+      "Openitem.count"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Openitem.dateinvoiced",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_invoice i LEFT JOIN c_invoicepayschedule ips ON i.c_invoice_id = ips.c_invoice_id AND i.ispaid ='N' LEFT JOIN C_DunningLevel dl ON dl.C_DunningLevel_ID=i.C_DunningLevel_ID LEFT JOIN c_acctschema ac ON ac.ad_client_id = i.ad_client_id AND (ac.ad_orgonly_id = i.ad_org_id) JOIN c_doctype dt ON i.c_doctype_id = dt.c_doctype_id JOIN c_paymentterm p ON i.c_paymentterm_id = p.c_paymentterm_id WHERE i.ispaid ='N' AND i.ad_client_id=1000026 AND i.dateinvoiced >= DATE '2026-01-01' AND i.dateinvoiced < DATE '2026-09-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

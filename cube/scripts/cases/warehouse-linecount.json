@@ -1,0 +1,28 @@
+{
+  "name": "Warehouse.linecount equals rows across all five UNION branches in range, tenant-scoped",
+  "note": "Warehouse is a UNION ALL of five document families: movements, in/out confirmations, shipment lines, production lines and inventory lines. The reference sums the five branch counts, which is equivalent to counting the union. Two things to know before reading a mismatch as a bug. (1) ONLY the M_Movement branch uses a business date - the other four map movementdate to `created`, the row insert timestamp, so this measure mixes a document date with four audit timestamps. (2) Branch 1 LEFT JOINs its lines, so a movement with no lines still contributes one row, while branches 2-5 INNER JOIN theirs and drop headers with no lines. Both behaviours are the cube's, and the reference mirrors them rather than correcting them.",
+  "cubeQuery": {
+    "measures": [
+      "Warehouse.linecount"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Warehouse.movementdate",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT (SELECT count(m.M_Movement_id) FROM M_Movement m LEFT JOIN m_movementline ml ON m.M_Movement_id = ml.M_Movement_id LEFT JOIN m_locator loc ON loc.m_locator_id=ml.m_locator_id LEFT JOIN c_doctype dt ON dt.C_Doctype_ID = m.C_Doctype_ID WHERE m.ad_client_id=1000026 AND m.MovementDate >= DATE '2026-01-01' AND m.MovementDate < DATE '2026-09-01') + (SELECT count(ioc.m_inoutconfirm_id) FROM M_InOutConfirm ioc LEFT JOIN M_InOutLineConfirm iolc ON ioc.M_InOutConfirm_ID = iolc.M_InOutConfirm_ID JOIN M_InOutLine iol ON iol.M_InOutLine_id = iolc.M_InOutLine_id JOIN M_InOut io ON io.M_InOut_id = iol.M_InOut_id LEFT JOIN m_locator loc ON loc.m_locator_id=iol.m_locator_id LEFT JOIN c_doctype dt ON dt.C_Doctype_ID = ioc.C_Doctype_ID WHERE ioc.ad_client_id=1000026 AND ioc.created >= DATE '2026-01-01' AND ioc.created < DATE '2026-09-01') + (SELECT count(iol.m_inoutline_id) FROM M_InOut io JOIN M_InOutLine iol ON io.M_InOut_id = iol.M_InOut_id LEFT JOIN c_doctype dt ON dt.C_Doctype_ID = io.C_Doctype_ID WHERE iol.ad_client_id=1000026 AND iol.created >= DATE '2026-01-01' AND iol.created < DATE '2026-09-01') + (SELECT count(pl.M_ProductionLine_id) FROM M_Production p JOIN M_ProductionLine pl ON p.M_Production_id = pl.M_Production_id LEFT JOIN m_locator loc ON loc.m_locator_id=p.m_locator_id LEFT JOIN c_doctype dt ON dt.C_Doctype_ID = p.C_Doctype_ID WHERE pl.ad_client_id=1000026 AND pl.created >= DATE '2026-01-01' AND pl.created < DATE '2026-09-01') + (SELECT count(il.M_InventoryLine_id) FROM M_Inventory i JOIN M_InventoryLine il ON i.M_Inventory_id = il.M_Inventory_id LEFT JOIN m_locator loc ON loc.m_locator_id=il.m_locator_id LEFT JOIN c_doctype dt ON dt.C_Doctype_ID = i.C_Doctype_ID WHERE il.ad_client_id=1000026 AND il.created >= DATE '2026-01-01' AND il.created < DATE '2026-09-01') AS value",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

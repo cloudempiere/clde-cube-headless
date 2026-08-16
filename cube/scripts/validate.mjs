@@ -31,11 +31,32 @@ import crypto from 'node:crypto';
 import pg from 'pg';
 
 const API    = process.env.CUBE_URL ?? 'http://localhost:4000/cubejs-api/v1/load';
-const SECRET = process.env.CUBEJS_API_SECRET;
 const CASES  = path.resolve(import.meta.dirname, 'cases');
 
+/**
+ * Read the secret from .env when it is not exported, and FAIL if it is missing.
+ *
+ * This used to be `process.env.CUBEJS_API_SECRET` with `if (!SECRET) return ''`,
+ * which sent an unauthenticated request instead. Every case then came back
+ * "Access denied: security context carries no ad_client_id" - a message that
+ * points at the model and the security context, not at the missing secret. It
+ * reads exactly like a broken tenant filter, and it cost a wrong diagnosis.
+ * A missing credential must look like a missing credential.
+ */
+const SECRET = process.env.CUBEJS_API_SECRET ?? (() => {
+  const envFile = path.resolve(import.meta.dirname, '..', '.env');
+  const line = fs.existsSync(envFile)
+    ? fs.readFileSync(envFile, 'utf8').split('\n').find(l => l.startsWith('CUBEJS_API_SECRET='))
+    : null;
+  return line ? line.slice('CUBEJS_API_SECRET='.length).trim() : null;
+})();
+
+if (!SECRET) {
+  console.error('\n  CUBEJS_API_SECRET is not set and not readable from .env - cannot sign a token.\n');
+  process.exit(2);
+}
+
 function jwt(payload) {
-  if (!SECRET) return '';
   const b64  = o => Buffer.from(JSON.stringify(o)).toString('base64url');
   const head = b64({ alg: 'HS256', typ: 'JWT' });
   const body = b64({ ...payload, exp: Math.floor(Date.now() / 1000) + 900 });
@@ -73,6 +94,12 @@ async function fromSql(sql) {
   });
   await client.connect();
   try {
+    // Reference queries scan whole fact tables, and Postgres' parallel workers
+    // then ask for more shared memory than the container has:
+    //   "could not resize shared memory segment ... No space left on device"
+    // That surfaces as a case ERROR and reads like a broken reference query.
+    // These run once, so serial execution costs little and always completes.
+    await client.query('SET max_parallel_workers_per_gather = 0');
     const { rows } = await client.query(sql);
     return Number(Object.values(rows[0])[0]);
   } finally { await client.end(); }

@@ -1,0 +1,28 @@
+{
+  "name": "Logisticfacts.shipmentcount equals shipments in range, tenant-scoped",
+  "note": "Logisticfacts applies NO docstatus filter - every m_inout row is in scope, drafts and voided included. That is the cube's current definition and the reference mirrors it. Every join off m_inout is a LEFT JOIN to a single-row lookup, and the LATERAL price subquery is an aggregate returning one row, so nothing multiplies and the count is simply the number of m_inout rows.",
+  "cubeQuery": {
+    "measures": [
+      "Logisticfacts.shipmentcount"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Logisticfacts.shipdate",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM m_inout io WHERE io.ad_client_id=1000026 AND io.shipdate >= DATE '2026-01-01' AND io.shipdate < DATE '2026-09-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

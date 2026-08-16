@@ -1,0 +1,28 @@
+{
+  "name": "Quotefacts.linecount equals quote lines (docsubtypeso ON/OB, completed) in range, tenant-scoped",
+  "note": "The two ad_ref_list joins are INNER in the cube SQL, so an order whose deliveryrule or invoicerule has no active ad_ref_list row is dropped. The reference mirrors that deliberately - it is checking the rollup against the cube's own definition, not proposing a different one. Verified there are no duplicate value rows for references 150/151, so these joins filter without fanning out.",
+  "cubeQuery": {
+    "measures": [
+      "Quotefacts.linecount"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Quotefacts.datequoted",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_order o JOIN c_orderline ol ON o.c_order_id=ol.c_order_id JOIN c_doctype dt ON o.c_doctypetarget_id=dt.c_doctype_id AND dt.docsubtypeso::text = ANY (ARRAY['ON'::text,'OB'::text]) JOIN m_warehouse wh ON o.m_warehouse_id=wh.m_warehouse_id JOIN ad_ref_list delrule ON o.deliveryrule=delrule.value::bpchar AND delrule.ad_reference_id=151::numeric JOIN ad_ref_list invrule ON o.invoicerule=invrule.value::bpchar AND invrule.ad_reference_id=150::numeric WHERE o.ad_client_id=1000026 AND o.docstatus = ANY (ARRAY['CO','CL']) AND o.dateordered >= DATE '2026-01-01' AND o.dateordered < DATE '2026-09-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

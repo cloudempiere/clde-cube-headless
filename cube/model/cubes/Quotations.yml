@@ -19,22 +19,63 @@ cubes:
         o.c_order_id,
         ol.c_orderline_id,
         o.DocumentNo,
-        CASE
+        -- AMOUNTS ARE CONVERTED to the tenant's accounting currency; the full
+      -- reasoning is in InvoiceFacts.
+      --
+      -- UNVERIFIED, and it cannot currently be verified. Invoices and orders
+      -- each have a multi-currency tenant to test against (1000036, with six and
+      -- seven currencies), so both have a reference case that would fail if the
+      -- conversion were wrong. Quotations have none: NO tenant in this database
+      -- quotes in more than one currency, so every quote converts 1:1 and any
+      -- error here is invisible to the suite.
+      --
+      -- It is applied anyway, because the alternative is a model where
+      -- Quotefacts.linenetamt and Orderfacts.linenetamt mean different things
+      -- and nothing says so. Revisit the moment a tenant quotes in a second
+      -- currency - that is when this first does arithmetic.
+      --
+      -- QUANTITIES are deliberately NOT wrapped - only amounts.
+      currencyconvert(
+      CASE
         WHEN  charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN (ol.pricelist*-1)*ol.QtyOrdered
         ELSE ol.pricelist*ol.QtyOrdered
-      END AS linepricelist,
-        CASE
+      END,
+        o.c_currency_id, acctccy.c_currency_id, o.dateacct, o.c_conversiontype_id, o.ad_client_id, o.ad_org_id
+      ) AS linepricelist,
+        currencyconvert(
+      CASE
         WHEN  charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN ol.linenetamt*-1
         ELSE ol.linenetamt
-      END AS linenetamt,
+      END,
+        o.c_currency_id, acctccy.c_currency_id, o.dateacct, o.c_conversiontype_id, o.ad_client_id, o.ad_org_id
+      ) AS linenetamt,
+      currencyconvert(
       CASE
         WHEN  charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN ol.linetotalamt*-1
         ELSE ol.linetotalamt
-      END AS linetotalamt,
+      END,
+        o.c_currency_id, acctccy.c_currency_id, o.dateacct, o.c_conversiontype_id, o.ad_client_id, o.ad_org_id
+      ) AS linetotalamt,
+      -- FIXED: the ELSE branch was missing "* ol.QtyOrdered".
+      --
+      -- The measure built on this is "Cogs for Line", type sum. The credit-memo
+      -- branch multiplied by quantity; the normal branch did not - so the column
+      -- was a LINE TOTAL on one branch and a UNIT PRICE on the other, and the
+      -- measure summed whichever it got. The credit branch fires on 0 of 676,902
+      -- quote lines (quotations are docsubtypeso ON/OB, never credit memos), so
+      -- in practice it ALWAYS returned the unit price - and 374,510 lines, 55 per
+      -- cent, have QtyOrdered <> 1.
+      --
+      -- Cost of goods across all quotations read 173,248,627 where it should
+      -- read 202,396,942: understated by 29,148,315, or 14.4 per cent. OrderFacts
+      -- has always multiplied on both branches; this makes the two agree.
+      currencyconvert(
       CASE
         WHEN  charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN (ol.pricelimit*-1)*ol.QtyOrdered
-        ELSE ol.pricelimit
-      END AS linepricelimit,
+        ELSE ol.pricelimit*ol.QtyOrdered
+      END,
+        o.c_currency_id, acctccy.c_currency_id, o.dateacct, o.c_conversiontype_id, o.ad_client_id, o.ad_org_id
+      ) AS linepricelimit,
         ol.QtyOrdered as qtyquoted,
         ol.discount,
         0::numeric as markup,
@@ -80,6 +121,19 @@ cubes:
       JOIN ad_ref_list delrule ON o.deliveryrule = delrule.value::bpchar AND delrule.ad_reference_id = 151::numeric
       JOIN ad_ref_list invrule ON o.invoicerule = invrule.value::bpchar AND invrule.ad_reference_id = 150::numeric
       LEFT JOIN ad_ref_list linestate ON ol.OrderLineStatus = linestate.value::bpchar AND linestate.ad_reference_id = 1000116::numeric
+      -- Target currency, exactly one row per order. See InvoiceFacts.
+      LEFT JOIN LATERAL (
+        SELECT s.c_currency_id
+          FROM c_acctschema s
+          LEFT JOIN ad_clientinfo ci ON ci.ad_client_id = s.ad_client_id
+         WHERE s.ad_client_id = o.ad_client_id
+         ORDER BY (s.isactive = 'Y')                        DESC,
+                  (s.ad_orgonly_id = o.ad_org_id)           DESC NULLS LAST,
+                  (COALESCE(s.ad_orgonly_id, 0) = 0)        DESC,
+                  (s.c_acctschema_id = ci.c_acctschema1_id) DESC,
+                  s.c_acctschema_id
+         LIMIT 1
+      ) acctccy ON TRUE
       WHERE 1=1  AND (o.docstatus = ANY (ARRAY['CO'::text, 'CL'::text]))
       AND {FILTER_PARAMS.Quotefacts.date.filter('o.dateordered')}
       AND o.dateordered >= DATE '2000-01-01' AND o.dateordered < CURRENT_DATE + INTERVAL '1 year'

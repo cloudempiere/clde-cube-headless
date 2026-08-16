@@ -1,0 +1,18 @@
+{
+  "name": "Openitem.grandtotal converts currencies, tenant 1000036 (six of them)",
+  "note": "Receivables were summed at FACE VALUE across six currencies - BGN, EUR, GBP, HUF, PLN, RON - on 1,215 open invoices:\n\n    before conversion   4,445,592.92\n    after conversion    2,261,902.17\n    overstated by       2,183,690.75   = 96.5%\n\nNearly double. openitem-grandtotal-creditmemo covers the same measure on tenant 1000026, which is EUR-only, so it returned 1,368,309 before this conversion and 1,368,309 after it.\n\nThe cube's own SQL is mirrored exactly, including the LEFT JOIN to c_invoicepayschedule gated on ispaid='N' and the join to c_paymentterm, which is INNER and therefore drops invoices without a payment term.",
+  "cubeQuery": {
+    "measures": [
+      "Openitem.grandtotal"
+    ]
+  },
+  "referenceSql": "SELECT round(sum(currencyconvert(CASE WHEN charat(dt.docbasetype::character varying,3)::text='C' THEN COALESCE(ips.dueamt,i.grandtotal)*-1 ELSE COALESCE(ips.dueamt,i.grandtotal) END, i.c_currency_id, (SELECT s.c_currency_id FROM c_acctschema s LEFT JOIN ad_clientinfo ci ON ci.ad_client_id=s.ad_client_id WHERE s.ad_client_id=i.ad_client_id ORDER BY (s.isactive='Y') DESC,(s.ad_orgonly_id=i.ad_org_id) DESC NULLS LAST,(COALESCE(s.ad_orgonly_id,0)=0) DESC,(s.c_acctschema_id=ci.c_acctschema1_id) DESC,s.c_acctschema_id LIMIT 1), i.dateacct, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id)),2) AS value FROM c_invoice i LEFT JOIN c_invoicepayschedule ips ON i.c_invoice_id=ips.c_invoice_id AND i.ispaid='N' JOIN c_doctype dt ON dt.c_doctype_id=i.c_doctype_id JOIN c_paymentterm p ON i.c_paymentterm_id=p.c_paymentterm_id WHERE i.ispaid='N' AND i.ad_client_id=1000036 AND i.dateinvoiced >= DATE '2000-01-01' AND i.dateinvoiced < CURRENT_DATE + INTERVAL '1 year'",
+  "tolerance": 0.0001,
+  "securityContext": {
+    "ad_client_id": 1000036,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

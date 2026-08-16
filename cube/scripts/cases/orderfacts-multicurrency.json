@@ -1,0 +1,28 @@
+{
+  "name": "Orderfacts.linenetamt converts currencies, tenant 1000036 (seven of them)",
+  "note": "Orders were summed at FACE VALUE across seven currencies - BGN, CZK, EUR, GBP, HUF, PLN, USD - on 2,599,076 lines. For 2026 H1:\n\n    before conversion   17,168,330.56\n    after conversion    12,270,112.03\n    overstated by        4,898,218.53   = 39.9%\n\nWHY THIS WAS NOT CAUGHT EARLIER, WHICH IS THE POINT OF THIS CASE\n\n51 of the 54 reference cases run against tenant 1000026, and 1000026 orders exclusively in EUR. Every one of them passed, unchanged, both before and after currency conversion was added - because for that tenant conversion is arithmetically a no-op. The suite was not weak on this measure; it was silent on it. A green suite after a semantic change means the change was untested, not that it was safe.\n\nThe reference mirrors ALL of the cube's filters - processed, isProposal and the dateordered floor - because omitting any one of them produces a plausible wrong number that reads as a model defect.",
+  "cubeQuery": {
+    "measures": [
+      "Orderfacts.linenetamt"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Orderfacts.dateordered",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-06-30"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT round(sum(currencyconvert(CASE WHEN charat(dt.docbasetype::character varying,3)::text='C' THEN ol.linenetamt*-1 ELSE ol.linenetamt END, o.c_currency_id, (SELECT s.c_currency_id FROM c_acctschema s LEFT JOIN ad_clientinfo ci ON ci.ad_client_id=s.ad_client_id WHERE s.ad_client_id=o.ad_client_id ORDER BY (s.isactive='Y') DESC,(s.ad_orgonly_id=o.ad_org_id) DESC NULLS LAST,(COALESCE(s.ad_orgonly_id,0)=0) DESC,(s.c_acctschema_id=ci.c_acctschema1_id) DESC,s.c_acctschema_id LIMIT 1), o.dateacct, o.c_conversiontype_id, o.ad_client_id, o.ad_org_id)),2) AS value FROM c_order o JOIN c_orderline ol ON ol.c_order_id=o.c_order_id JOIN c_doctype dt ON dt.c_doctype_id=o.c_doctypetarget_id WHERE o.ad_client_id=1000036 AND o.processed='Y' AND o.isProposal='N' AND o.dateordered >= DATE '2026-01-01' AND o.dateordered < DATE '2026-07-01'",
+  "tolerance": 0.0001,
+  "securityContext": {
+    "ad_client_id": 1000036,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

@@ -66,7 +66,20 @@ cubes:
       LEFT JOIN c_charge ch ON cpl.c_charge_id = ch.c_charge_id
       LEFT JOIN c_chargetype cht ON ch.c_chargetype_id = cht.c_chargetype_id
 
+      -- ad_client_id added to a join that matched on organisation ALONE.
+      --
+      -- As written this could pair a cash plan line with another tenant's
+      -- accounting schema, and through it that tenant's account and bank
+      -- account (see the cha/pha/oi joins below). It does not today - 0
+      -- cross-client matches - but only because ad_org_id happens to be unique
+      -- across clients, which is a property of the data, not a constraint. The
+      -- predicate makes the isolation explicit rather than incidental.
+      --
+      -- 262 of 2,853 lines still match no schema and get NULL account and bank
+      -- data. That is a data question for iDempiere, not something to paper over
+      -- here: those organisations have no accounting schema of their own.
       LEFT JOIN c_acctschema sch ON cpl.ad_org_id = sch.ad_orgonly_id
+                                AND sch.ad_client_id = cpl.ad_client_id
       LEFT JOIN AD_OrgInfo oi ON oi.AD_Org_ID=sch.ad_orgonly_id
       LEFT JOIN c_bankaccount ba ON COALESCE (i.C_BankAccount_ID, oi.C_BankAccount_ID) = ba.c_bankaccount_id
 

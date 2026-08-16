@@ -22,24 +22,48 @@ cubes:
       o.docstatus,
       ol.c_orderline_id,
       o.DocumentNo,
+      -- AMOUNTS ARE CONVERTED to the tenant's accounting currency.
+      --
+      -- Unconverted, orders raised in different currencies were summed at face
+      -- value - the same defect corrected in InvoiceFacts, where tenant 1000036
+      -- overstated by 46.4% because forint were added as though they were euros.
+      -- currencyconvert() is iDempiere's own function, so this uses the rate
+      -- lookup the posting engine uses, at the DOCUMENT's own conversion type
+      -- and accounting date, so historical figures do not move when rates change.
+      --
+      -- QUANTITIES are deliberately NOT wrapped - only amounts.
+      currencyconvert(
       CASE
-        WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN (ol.pricelist*-1)*ol.QtyOrdered
-        ELSE ol.pricelist*ol.QtyOrdered
-      END AS linepricelist,
+          WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN (ol.pricelist*-1)*ol.QtyOrdered
+          ELSE ol.pricelist*ol.QtyOrdered
+        END,
+        o.c_currency_id, acctccy.c_currency_id, o.dateacct, o.c_conversiontype_id, o.ad_client_id, o.ad_org_id
+      ) AS linepricelist,
+      currencyconvert(
       CASE
-        WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN ol.linenetamt*-1
-        ELSE ol.linenetamt
-      END AS linenetamt,
+          WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN ol.linenetamt*-1
+          ELSE ol.linenetamt
+        END,
+        o.c_currency_id, acctccy.c_currency_id, o.dateacct, o.c_conversiontype_id, o.ad_client_id, o.ad_org_id
+      ) AS linenetamt,
+      currencyconvert(
       CASE
-        WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN ol.linetotalamt*-1
-        ELSE ol.linetotalamt
-      END AS linetotalamt,
+          WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN ol.linetotalamt*-1
+          ELSE ol.linetotalamt
+        END,
+        o.c_currency_id, acctccy.c_currency_id, o.dateacct, o.c_conversiontype_id, o.ad_client_id, o.ad_org_id
+      ) AS linetotalamt,
+      currencyconvert(
       CASE
-        WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN (ol.pricelimit*-1)*ol.QtyOrdered
-        ELSE ol.pricelimit*ol.QtyOrdered
-      END AS linepricelimit,
+          WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN (ol.pricelimit*-1)*ol.QtyOrdered
+          ELSE ol.pricelimit*ol.QtyOrdered
+        END,
+        o.c_currency_id, acctccy.c_currency_id, o.dateacct, o.c_conversiontype_id, o.ad_client_id, o.ad_org_id
+      ) AS linepricelimit,
       ol.priceactual,
-      COALESCE(ol.qtytoinvoice*ol.priceactual,0) as qtytoinvoiceamt,
+      currencyconvert(COALESCE(ol.qtytoinvoice*ol.priceactual,0),
+        o.c_currency_id, acctccy.c_currency_id, o.dateacct, o.c_conversiontype_id, o.ad_client_id, o.ad_org_id
+      ) AS qtytoinvoiceamt,
       ol.QtyOrdered,
       ol.QtyDelivered,
       ol.qtytoinvoice,
@@ -82,6 +106,24 @@ cubes:
       LEFT JOIN c_ordersource ords ON o.c_ordersource_id = ords.c_ordersource_id
       LEFT JOIN c_orderstatus stat ON o.c_orderstatus_id = stat.c_orderstatus_id
       LEFT JOIN w_store ws ON o.w_store_id = ws.w_store_id
+      -- Target currency, exactly one row per order. Same rule as InvoiceFacts,
+      -- where the full reasoning lives: prefer an ACTIVE schema, then the one
+      -- restricted to this order's organisation (c_acctschema.ad_orgonly_id),
+      -- then a client-wide schema, then the client's declared primary. Never a
+      -- literal currency id - that would be the hardcoded-tenant defect that was
+      -- removed from Storage.
+      LEFT JOIN LATERAL (
+        SELECT s.c_currency_id
+          FROM c_acctschema s
+          LEFT JOIN ad_clientinfo ci ON ci.ad_client_id = s.ad_client_id
+         WHERE s.ad_client_id = o.ad_client_id
+         ORDER BY (s.isactive = 'Y')                        DESC,
+                  (s.ad_orgonly_id = o.ad_org_id)           DESC NULLS LAST,
+                  (COALESCE(s.ad_orgonly_id, 0) = 0)        DESC,
+                  (s.c_acctschema_id = ci.c_acctschema1_id) DESC,
+                  s.c_acctschema_id
+         LIMIT 1
+      ) acctccy ON TRUE
       WHERE 1=1 AND o.processed='Y' AND isProposal ='N'
       -- Guard against date typos: 23 orders carry years like 0006 instead of 2006
       -- (documentno PO/SJ/.../0006). Unbounded, monthly partitioning would try to

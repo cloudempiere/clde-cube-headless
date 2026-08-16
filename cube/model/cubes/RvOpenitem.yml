@@ -26,14 +26,23 @@ cubes:
           COALESCE (paymenttermduedays(i.c_paymentterm_id, i.dateinvoiced, getdate()),daysbetween(getdate(), ips.duedate) ) AS daysdue,
           COALESCE(i.estimatedpaydate::timestamp with time zone, paymenttermduedate(i.c_paymentterm_id, i.dateinvoiced::timestamp with time zone)) AS estimatedpaydate,
 
-          CASE
-          WHEN charat(dt.docbasetype::character varying, 3)::text = 'C'::text THEN COALESCE (ips.dueamt, i.grandtotal) * -1
-          ELSE COALESCE (ips.dueamt, i.grandtotal)
-          END AS grandtotal,
+          -- Converted to the tenant's accounting currency; see the LATERAL and
+          -- the note in InvoiceFacts. Unconverted, invoices in six currencies
+          -- were summed at face value.
+          currencyconvert(
+            CASE
+            WHEN charat(dt.docbasetype::character varying, 3)::text = 'C'::text THEN COALESCE (ips.dueamt, i.grandtotal) * -1
+            ELSE COALESCE (ips.dueamt, i.grandtotal)
+            END,
+            i.c_currency_id, acctccy.c_currency_id, i.dateacct, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id
+          ) AS grandtotal,
 
-          COALESCE (invoiceopen(i.c_invoice_id, ips.c_invoicepayschedule_id),invoiceopen(i.c_invoice_id, 0)) AS openamt,
+          currencyconvert(
+            COALESCE (invoiceopen(i.c_invoice_id, ips.c_invoicepayschedule_id),invoiceopen(i.c_invoice_id, 0)),
+            i.c_currency_id, acctccy.c_currency_id, i.dateacct, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id
+          ) AS openamt,
 
-          i.chargeamt,
+          currencyconvert(i.chargeamt, i.c_currency_id, acctccy.c_currency_id, i.dateacct, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id) AS chargeamt,
           i.c_currency_id,
           i.c_conversiontype_id,
           i.c_paymentterm_id,
@@ -71,12 +80,40 @@ cubes:
           COALESCE (p.name, 'Empty') as c_paymentterm_name,
           COALESCE (dl.name, 'No Dunning') as c_dunninglevel_name,
           i.c_bankaccount_id,
-          COALESCE (invoiceopen(i.c_invoice_id, ips.c_invoicepayschedule_id),invoiceopen(i.c_invoice_id, 0)) AS pastdueamt,
+          -- Identical to openamt above, deliberately left as a separate column
+          -- rather than silently aliased: the two are the SAME expression today,
+          -- which is a modelling question (what should "past due" mean when it
+          -- ignores duedate?) and not something to settle inside a rename.
+          currencyconvert(
+            COALESCE (invoiceopen(i.c_invoice_id, ips.c_invoicepayschedule_id),invoiceopen(i.c_invoice_id, 0)),
+            i.c_currency_id, acctccy.c_currency_id, i.dateacct, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id
+          ) AS pastdueamt,
           i.docstatus AS duedaysrange_code
       FROM c_invoice i 
       LEFT JOIN c_invoicepayschedule ips ON i.c_invoice_id = ips.c_invoice_id AND i.ispaid ='N'
       LEFT JOIN C_DunningLevel dl ON dl.C_DunningLevel_ID=i.C_DunningLevel_ID
-      LEFT JOIN c_acctschema ac ON ac.ad_client_id = i.ad_client_id AND (ac.ad_orgonly_id = i.ad_org_id)
+      -- Target currency, exactly one row. Same rule as InvoiceFacts - see the
+      -- long note there. Replaces a join that read
+      --   LEFT JOIN c_acctschema ac ON ac.ad_client_id = i.ad_client_id
+      --                            AND (ac.ad_orgonly_id = i.ad_org_id)
+      -- which was DEAD: `ac` was never referenced by a single column, so every
+      -- invoice row scanned c_acctschema for nothing. It was also narrower than
+      -- iDempiere's own rule - it drops the "client-wide schema" branch - so had
+      -- anything used it, every client whose schema is not org-restricted would
+      -- have got NULL. That includes 1000036, the tenant these amounts were
+      -- validated against.
+      LEFT JOIN LATERAL (
+        SELECT s.c_currency_id
+          FROM c_acctschema s
+          LEFT JOIN ad_clientinfo ci ON ci.ad_client_id = s.ad_client_id
+         WHERE s.ad_client_id = i.ad_client_id
+         ORDER BY (s.isactive = 'Y')                        DESC,
+                  (s.ad_orgonly_id = i.ad_org_id)           DESC NULLS LAST,
+                  (COALESCE(s.ad_orgonly_id, 0) = 0)        DESC,
+                  (s.c_acctschema_id = ci.c_acctschema1_id) DESC,
+                  s.c_acctschema_id
+         LIMIT 1
+      ) acctccy ON TRUE
       JOIN c_doctype dt ON i.c_doctype_id = dt.c_doctype_id
       JOIN c_paymentterm p  ON i.c_paymentterm_id = p.c_paymentterm_id
       WHERE ispaid ='N' AND 1=1

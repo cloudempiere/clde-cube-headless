@@ -12,45 +12,106 @@
 cubes:
   - name: Invoicefacts
     sql: |2
-        SELECT i.ad_client_id,
+        -- AMOUNTS ARE CONVERTED to the tenant's accounting currency.
+      --
+      -- Without this, different currencies are summed at FACE VALUE. Tenant
+      -- 1000036 invoices in six - CZK, EUR, HUF, PLN, RON, USD - and Jan-Aug
+      -- 2026 reported 20,481,105 where the true figure is 13,990,240: overstated
+      -- by 46.4%, almost entirely because 186 lines worth 5.7M Hungarian forint
+      -- were added as though forint were euros.
+      --
+      -- currencyconvert() is iDempiere's own function, so this uses the same
+      -- rate lookup the posting engine uses. Verified against fact_acct, where
+      -- iDempiere stored its own conversions: PLN 39,601,989 vs 39,598,783,
+      -- USD 32,682,177 vs 32,682,023, HUF -7,868 vs -7,864 - rounding only.
+      --
+      -- WHICH CURRENCY TO CONVERT *TO*
+      --
+      -- A client does not have one accounting currency; it has one per
+      -- ACCOUNTING SCHEMA, and a schema can be restricted to a single
+      -- organisation through c_acctschema.ad_orgonly_id. Tenant 1000026 has SIX
+      -- schemas, one per operating company, and even its "primary" schema
+      -- (ad_clientinfo.c_acctschema1_id) is org-restricted - so reading the
+      -- primary returns another company's schema for a PPS one document.
+      --
+      -- Two earlier versions were wrong in ways that happened not to show:
+      --   min(c_currency_id) over a client's schemas - arbitrary the moment two
+      --     schemas disagree; client 11 already holds EUR and USD
+      --   ad_clientinfo.c_acctschema1_id - ignores org restriction entirely
+      -- Neither changes a number TODAY: no client has two schemas in different
+      -- currencies, and 0 invoices resolve to a different currency under the
+      -- org-aware rule. This is insurance, not a repair.
+      --
+      -- iDempiere's own rv_openitem expresses the rule as a JOIN:
+      --   ON ac.ad_client_id = i.ad_client_id
+      --   AND (ac.ad_orgonly_id = 0 OR ac.ad_orgonly_id = i.ad_org_id
+      --        OR ac.ad_orgonly_id IS NULL)
+      -- Do NOT copy that. It matches MORE THAN ONE schema for 3,503 invoices
+      -- (a client-wide schema AND an org-scoped one), silently duplicating those
+      -- rows in the vendor view, and NO schema for 190,247, whose amounts then
+      -- convert to NULL and vanish. The LATERAL below takes the same preference
+      -- order but returns exactly one row, always: active first, then the
+      -- org-specific schema, then a client-wide one, then the declared primary.
+      -- Unresolved invoices: 0. Client 1000019's only schema is INACTIVE, which
+      -- is why active is a preference and not a filter.
+      --
+      -- WHICH DATE
+      --
+      -- dateacct, not dateinvoiced - the date the document reaches the ledger,
+      -- and the date fact_acct posted its own conversion at, which is what these
+      -- figures were validated against. They differ on 24,502 invoices, 5,230 of
+      -- them across a month boundary where the rate actually moves; worth
+      -- 1,141.82 on tenant 1000036's 119.7M. dateinvoiced remains the BUSINESS
+      -- date and still drives the time dimension - only the rate lookup moved.
+      --
+      -- The conversion TYPE stays the document's own (c_conversiontype_id), so
+      -- a document booked at the Czech National Bank rate keeps it. Where it is
+      -- NULL - 40,544 invoices - currencyconvert falls back to the client
+      -- default, which is ECB here; verified identical, 101.96 either way.
+      --
+      -- QUANTITIES are deliberately NOT wrapped - only amounts.
+      SELECT i.ad_client_id,
         i.ad_org_id,
         i.c_invoice_id,
         i.updated,
         i.dateinvoiced,
         il.c_invoiceline_id,
-        CASE
-          WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN (il.pricelist*-1)*il.QtyInvoiced
-          ELSE il.pricelist*il.QtyInvoiced
-        END AS linepricelist,
-        -- PILOT: converted to the tenant's accounting currency.
-        --
-        -- Without this, amounts in different currencies are summed at face
-        -- value. Tenant 1000036 invoices in six - CZK, EUR, HUF, PLN, RON, USD -
-        -- and Jan-Aug 2026 reported 20,481,105 where the converted figure is
-        -- 14,354,333. Overstated by 6,126,772, or 42.7%, almost entirely because
-        -- 5.7M Hungarian forint were added as though they were euros.
-        --
-        -- The target is looked up from c_acctschema per tenant rather than
-        -- hardcoded: a literal currency id would be the same defect class as the
-        -- hardcoded tenant removed from Storage. All tenants examined use EUR,
-        -- but that is data, not an assumption worth baking in.
+        currencyconvert(
+          CASE
+            WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN (il.pricelist*-1)*il.QtyInvoiced
+            ELSE il.pricelist*il.QtyInvoiced
+          END,
+          i.c_currency_id,
+          acctccy.c_currency_id,
+          i.dateacct, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id
+        ) AS linepricelist,
         currencyconvert(
           CASE
             WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN il.linenetamt*-1
             ELSE il.linenetamt
           END,
           i.c_currency_id,
-          (SELECT min(acs.c_currency_id) FROM c_acctschema acs WHERE acs.ad_client_id = i.ad_client_id),
-          i.dateinvoiced, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id
+          acctccy.c_currency_id,
+          i.dateacct, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id
         ) AS linenetamt,
-        CASE
-          WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN il.linetotalamt*-1
-          ELSE il.linetotalamt
-        END AS linetotalamt,
-        CASE
-          WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN (il.pricelimit*-1)*il.QtyInvoiced
-          ELSE il.pricelimit*il.QtyInvoiced
-        END AS linepricelimit,
+        currencyconvert(
+          CASE
+            WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN il.linetotalamt*-1
+            ELSE il.linetotalamt
+          END,
+          i.c_currency_id,
+          acctccy.c_currency_id,
+          i.dateacct, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id
+        ) AS linetotalamt,
+        currencyconvert(
+          CASE
+            WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN (il.pricelimit*-1)*il.QtyInvoiced
+            ELSE il.pricelimit*il.QtyInvoiced
+          END,
+          i.c_currency_id,
+          acctccy.c_currency_id,
+          i.dateacct, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id
+        ) AS linepricelimit,
         CASE
           WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN il.QtyInvoiced*-1
           ELSE il.QtyInvoiced
@@ -70,6 +131,19 @@ cubes:
       JOIN c_doctype dt ON i.c_doctype_id = dt.c_doctype_id
       LEFT JOIN c_charge ch ON il.c_charge_id = ch.c_charge_id 
       LEFT JOIN C_PaymentTerm pt ON i.C_PaymentTerm_ID = pt.C_PaymentTerm_ID
+      -- Target currency, resolved ONCE per row. See the header comment.
+      LEFT JOIN LATERAL (
+        SELECT s.c_currency_id
+          FROM c_acctschema s
+          LEFT JOIN ad_clientinfo ci ON ci.ad_client_id = s.ad_client_id
+         WHERE s.ad_client_id = i.ad_client_id
+         ORDER BY (s.isactive = 'Y')                      DESC,
+                  (s.ad_orgonly_id = i.ad_org_id)         DESC NULLS LAST,
+                  (COALESCE(s.ad_orgonly_id, 0) = 0)      DESC,
+                  (s.c_acctschema_id = ci.c_acctschema1_id) DESC,
+                  s.c_acctschema_id
+         LIMIT 1
+      ) acctccy ON TRUE
       WHERE 1=1 AND (i.docstatus = ANY (ARRAY['CO'::text, 'CL'::text]))
       AND {FILTER_PARAMS.Invoicefacts.date.filter('i.dateinvoiced')}
       AND i.dateinvoiced >= DATE '2000-01-01' AND i.dateinvoiced < CURRENT_DATE + INTERVAL '1 year'

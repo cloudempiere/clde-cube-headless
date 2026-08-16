@@ -1,10 +1,30 @@
 {
-  "name": "cubejs-project-template",
+  "name": "clde-cube-headless",
   "version": "0.0.1",
   "private": true,
+  "description": "Cube semantic layer over iDempiere. The live project is in cube/; this root holds the 0.28-era reference model.",
+  "comment": [
+    "This file used to be the Cube 0.28.19 project scaffold, carrying",
+    "  \"name\": \"cubejs-project-template\", \"template\": \"docker\",",
+    "  \"templateVersion\": \"0.28.19\", \"scripts\": { \"dev\": \"cubejs-server\" }",
+    "It was never updated after the move to Cube 1.7.19 and was misleading in two",
+    "ways: it advertised a 0.28 template for a 1.7.19 runtime, and `npm run dev`",
+    "named a binary that is not installed here - there is no root node_modules and",
+    "no lock file, so it could only ever have failed.",
+    "",
+    "LAYOUT",
+    "  cube/       the live Cube 1.7.19 project - model, config, compose, scripts",
+    "  schema/     the 0.28 model, READ ONLY, kept as the migration reference",
+    "  cube.js     the 0.28 config, READ ONLY, same purpose",
+    "",
+    "Run everything from cube/. Cube reads its model from cube/model, so the",
+    "0.28 schema/ at this level is inert - but do not start a server from the",
+    "repository root or it will pick up the old cube.js instead."
+  ],
   "scripts": {
-    "dev": "cubejs-server"
-  },
-  "template": "docker",
-  "templateVersion": "0.28.19"
+    "dev": "echo 'Run from cube/: cd cube && docker compose up -d' && exit 1",
+    "validate": "cd cube && node scripts/validate.mjs",
+    "verify:rollups": "cd cube && node scripts/verify-rollups.mjs",
+    "test:isolation": "cd cube && node scripts/test-rollup-isolation.mjs"
+  }
 }

@@ -199,6 +199,24 @@ cubes:
         title: Cashplan Realised
         sql: processed
         type: boolean
+    # Tenant isolation stated on the cube. The "{ securityContext.x }"
+    # templating works ONLY in YAML - in JavaScript it passes through literally
+    # and matches nothing, silently.
+    #
+    # No ", 0": these are transactional facts holding no ad_client_id = 0 rows.
+    # The 0 in the global queryRewrite exists for reference and master data.
+    #
+    # queryRewrite still applies too; both filters agree.
+    access_policy:
+      - group: tenant_user
+        member_level:
+          includes: "*"
+        row_level:
+          filters:
+            - member: ad_client_id
+              operator: equals
+              values: ["{ securityContext.ad_client_id }"]
+
     pre_aggregations:
       - name: byMonth
         type: rollup
@@ -208,7 +226,12 @@ cubes:
           - Cashflowplan.cashin
           - Cashflowplan.cashout
         dimensions:
+          # Both tenant members, while both filters exist: queryRewrite filters
+          # Client.ad_client_id and the policy above filters Cashflowplan.ad_client_id.
+          # A rollup matches only when EVERY filtered member is one of its
+          # dimensions; listing one silently sends queries to the source.
           - Client.ad_client_id
+          - Cashflowplan.ad_client_id
         time_dimension: Cashflowplan.Date
         granularity: day
         partition_granularity: year

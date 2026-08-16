@@ -2,9 +2,19 @@ services:
   cube:
     image: cubejs/cube:latest
     ports:
-      - "4000:4000"
-      - "15432:15432"
+      - "4000:4000"      # REST/GraphQL API + Developer Playground
+      - "15432:15432"    # Cube SQL API (Postgres wire protocol) - queries the MODEL
+      - "13306:13306"   # Cube Store (MySQL wire protocol) - the MATERIALISED tables
     env_file: .env
     volumes:
       - ./model:/cube/conf/model
       - ./cube.js:/cube/conf/cube.js
+      # Materialised pre-aggregations (RocksDB metastore + parquet files) live
+      # here. WITHOUT this volume they sit in the container's writable layer:
+      # `restart` keeps them, but `down`, `rm` or any image pull discards the
+      # lot - and a full-history backfill of the seven fact rollups is hours of
+      # rebuilding. Named volume so it survives container replacement.
+      - cubestore-data:/cube/conf/.cubestore
+
+volumes:
+  cubestore-data:

@@ -37,6 +37,45 @@ module.exports = {
   },
 
   /**
+   * SQL API AUTH (port CUBEJS_PG_SQL_PORT - DBeaver, Superset, Metabase, psql)
+   *
+   * The SQL API carries no JWT, so without this every SQL connection reaches
+   * queryRewrite with an empty security context and is refused. A BI tool
+   * cannot send claims, so the LOGIN has to carry the tenant instead.
+   *
+   *   username   <ad_client_id>            e.g. 1000026
+   *              <ad_client_id>.<lang>     e.g. 1000026.sk_SK
+   *   password   CUBEJS_SQL_PASSWORD (one shared secret, checked below)
+   *
+   * The username is the tenant claim, so anyone who can reach the port and
+   * knows the password can pick their own tenant. That is acceptable for a
+   * LOCAL DEV instance bound to localhost and nothing else. Before this is
+   * exposed anywhere, give each tenant its own credential and verify the pair,
+   * or put the SQL API behind a proxy that injects the identity.
+   */
+  checkSqlAuth: (req, user, password) => {
+    const expected = process.env.CUBEJS_SQL_PASSWORD;
+    if (!expected) throw new Error('SQL API disabled: CUBEJS_SQL_PASSWORD is not set');
+    if (password !== expected) throw new Error('Access denied: bad SQL password');
+
+    const [tenant, language = 'en_US'] = String(user ?? '').split('.');
+    if (!/^\d+$/.test(tenant)) {
+      throw new Error(
+        `Access denied: SQL username must be an ad_client_id, optionally "<id>.<lang>" - got "${user}"`
+      );
+    }
+
+    return {
+      password,
+      securityContext: {
+        ad_client_id: Number(tenant),
+        ad_language: language,
+        roles: ['tenant_user'],
+      },
+    };
+  },
+
+  /**
    * TENANT ISOLATION
    *
    * The rule is iDempiere's own: ad_client_id IN (tenant, 0).

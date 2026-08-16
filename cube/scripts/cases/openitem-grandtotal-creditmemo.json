@@ -1,0 +1,28 @@
+{
+  "name": "Openitem.grandtotal negates credit memos, tenant-scoped",
+  "note": "Covers the ONLY live sign flip that no other case reached. Openitem negates COALESCE(ips.dueamt, i.grandtotal) when the document base type has 'C' as its third character - ARC and APC, the credit memos. This window contains 8 such rows, so an inverted or dropped sign moves the total; the case is not vacuous.\n\nThe reference uses substr(dt.docbasetype,3,1) where the cube uses charat(...), so the rule is encoded independently rather than copied.\n\nContext for anyone consolidating the 14 charat copies in this model: 5 are live in Invoicefacts (covered by invoicefacts-net), this is the 6th and last live one, and the remaining 8 in Orderfacts and Quotations are DEAD - across all 1,194,263 orders in the database no order doctype has 'C' as its third character. Orders are SOO/POO; credit memos are invoice-level documents.\n\nThe reference rounds PER ROW - sum(ROUND(x,0)) - because the measure is defined as sql: ROUND(grandtotal,0) with type: sum, so Cube rounds each row before summing. Rounding once at the end instead gives 1,368,284.38 against the cube's 1,368,309: a 24.62 drift across 1,755 rows that a loose tolerance would hide. Worth knowing this measure discards sub-unit precision row by row, which is a modelling choice rather than an accident of this test.",
+  "cubeQuery": {
+    "measures": [
+      "Openitem.grandtotal"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Openitem.dateinvoiced",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT sum(ROUND(CASE WHEN substr(dt.docbasetype,3,1)='C' THEN COALESCE(ips.dueamt,i.grandtotal)*-1 ELSE COALESCE(ips.dueamt,i.grandtotal) END, 0)) AS value FROM c_invoice i LEFT JOIN c_invoicepayschedule ips ON i.c_invoice_id=ips.c_invoice_id AND i.ispaid='N' LEFT JOIN C_DunningLevel dl ON dl.C_DunningLevel_ID=i.C_DunningLevel_ID LEFT JOIN c_acctschema ac ON ac.ad_client_id=i.ad_client_id AND ac.ad_orgonly_id=i.ad_org_id JOIN c_doctype dt ON i.c_doctype_id=dt.c_doctype_id JOIN c_paymentterm p ON i.c_paymentterm_id=p.c_paymentterm_id WHERE i.ispaid='N' AND i.ad_client_id=1000026 AND i.dateinvoiced >= DATE '2026-01-01' AND i.dateinvoiced < DATE '2026-09-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

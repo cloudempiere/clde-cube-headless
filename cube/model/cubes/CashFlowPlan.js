@@ -69,7 +69,8 @@ LEFT JOIN C_Activity act ON act.C_Activity_ID = COALESCE(cpl.C_Activity_ID, cp.C
 
 
 
-WHERE 1=1 AND cpl.isactive='Y' 
+WHERE 1=1 AND cpl.isactive='Y'
+AND cpl.DateTrx >= DATE '2000-01-01' AND cpl.DateTrx < CURRENT_DATE + INTERVAL '10 years' 
 order by cpl.DateTrx ASC
 
     `,
@@ -296,7 +297,7 @@ order by cpl.DateTrx ASC
       granularity: `day`,
       partition_granularity: `year`,
       build_range_start: { sql: `SELECT DATE '2000-01-01'` },
-      build_range_end:   { sql: `SELECT CURRENT_DATE + INTERVAL '1 year'` },
+      build_range_end:   { sql: `SELECT CURRENT_DATE + INTERVAL '10 years'` },
       refresh_key: { every: `1 day`, incremental: true, update_window: `90 day` },
     },
     // default: {

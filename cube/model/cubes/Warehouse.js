@@ -196,6 +196,7 @@ cube(`Warehouse`, {
         LEFT JOIN c_doctype dt ON dt.C_Doctype_ID = i.C_Doctype_ID
         ) sq
         WHERE 1=1 AND ${FILTER_PARAMS.Warehouse.date.filter('movementdate')}
+        AND movementdate >= DATE '2000-01-01' AND movementdate < CURRENT_DATE + INTERVAL '1 year'
       `,
   
       // refresh_key: {

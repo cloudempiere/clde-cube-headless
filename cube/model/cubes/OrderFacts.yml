@@ -317,7 +317,7 @@ cubes:
         build_range_start:
           sql: "SELECT DATE '2000-01-01'"
         build_range_end:
-          sql: SELECT CURRENT_DATE
+          sql: SELECT CURRENT_DATE + INTERVAL '2 years'
         refresh_key:
           every: "1 day"
           incremental: true

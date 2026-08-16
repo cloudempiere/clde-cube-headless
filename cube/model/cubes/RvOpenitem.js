@@ -82,6 +82,7 @@ LEFT JOIN c_acctschema ac ON ac.ad_client_id = i.ad_client_id AND (ac.ad_orgonly
 JOIN c_doctype dt ON i.c_doctype_id = dt.c_doctype_id
 JOIN c_paymentterm p  ON i.c_paymentterm_id = p.c_paymentterm_id
 WHERE ispaid ='N' AND 1=1
+AND i.dateinvoiced >= DATE '2000-01-01' AND i.dateinvoiced < CURRENT_DATE + INTERVAL '1 year'
   `,
 
   // refresh_key: {

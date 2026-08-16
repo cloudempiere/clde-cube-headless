@@ -71,6 +71,7 @@ cube(`Quotefacts`, {
       LEFT JOIN ad_ref_list linestate ON ol.OrderLineStatus = linestate.value::bpchar AND linestate.ad_reference_id = 1000116::numeric
       WHERE 1=1  AND (o.docstatus = ANY (ARRAY['CO'::text, 'CL'::text]))
       AND ${FILTER_PARAMS.Quotefacts.date.filter('o.dateordered')}
+      AND o.dateordered >= DATE '2000-01-01' AND o.dateordered < CURRENT_DATE + INTERVAL '1 year'
     `,
     
     joins: {

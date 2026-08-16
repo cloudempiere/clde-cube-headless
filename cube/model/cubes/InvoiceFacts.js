@@ -46,6 +46,7 @@ cube(`Invoicefacts`, {
     LEFT JOIN C_PaymentTerm pt ON i.C_PaymentTerm_ID = pt.C_PaymentTerm_ID
     WHERE 1=1 AND (i.docstatus = ANY (ARRAY['CO'::text, 'CL'::text]))
     AND ${FILTER_PARAMS.Invoicefacts.date.filter('i.dateinvoiced')}
+    AND i.dateinvoiced >= DATE '2000-01-01' AND i.dateinvoiced < CURRENT_DATE + INTERVAL '1 year'
     `,
 
     // refresh_key: {

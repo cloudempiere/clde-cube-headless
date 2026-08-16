@@ -14,23 +14,29 @@
  * so a token that authenticated but carried no claim received NO filter and
  * every tenant's rows. Here a missing claim throws instead.
  *
- * DO NOT REMOVE queryRewrite YET. THIS IS THE ONE THING PROTECTING 15 CUBES.
+ * DO NOT REMOVE queryRewrite YET. ONE CUBE STILL DEPENDS ON IT ENTIRELY.
  *
- * All seven FACT cubes now carry their own access_policy, which makes it
- * tempting to delete this as superseded. It is not. Cube's rule is that
- * "when you define access policies for specific groups, access is
- * automatically denied to all other groups" - and that deny-by-default applies
- * ONLY to cubes that HAVE a policy.
+ * Every cube carrying ad_client_id now declares its own access_policy - except
+ * Warehouselayout in Locator.yml. Cube's rule is that "when you define access
+ * policies for specific groups, access is automatically denied to all other
+ * groups", and that deny-by-default applies ONLY to cubes that HAVE a policy.
+ * For Warehouselayout, this function is the entire isolation story. Remove it
+ * and that cube becomes readable across all sixteen tenants, with no error and
+ * nothing in the logs.
  *
- * Fifteen cubes have none: Businesspartner, MProduct, User, AccountingFact,
- * Client, Doctype, Organization, Storage, Session, Locator, ForecastFact,
- * MProductCategory, CBank, CBankaccount, CBankstatement. For those, this
- * function is the entire isolation story. Removing it makes every one of them
- * readable across all sixteen tenants, with no error and nothing in the logs.
+ * Locator is excluded on purpose, not by oversight. Giving it the same policy
+ * removed 654 rows from the Inventory view - 253,158 -> 252,504 - because
+ * Warehouse facts join it, and a row_level filter on a JOINED DIMENSION drops
+ * FACT rows whose join finds no permitted match. 624 shipment lines reference a
+ * locator that is NULL or belongs to another ad_client_id. The full reasoning
+ * is in Locator.yml.
  *
- * Safe to remove only once every cube reachable by a query either carries a
- * policy or is deliberately classified as non-tenant data. Until then both
- * layers apply and agree; scripts/test-rollup-isolation.mjs asserts the result.
+ * So the last step before this can go is a decision, not a code change: either
+ * accept losing those 654 rows, or fix the cross-tenant locator references in
+ * iDempiere, or classify Warehouselayout as non-tenant data.
+ *
+ * Until then both layers apply and agree; scripts/test-rollup-isolation.mjs
+ * asserts the result.
  *
  * DESTINATION: per-cube access_policy everywhere, which additionally gives
  * member-level control and masking - see docs/ADR-001.

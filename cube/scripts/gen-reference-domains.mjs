@@ -58,12 +58,19 @@ const body = DOMAINS.map(([id, name, title, users], i) => `
     title: ${title}
     sql_alias: ${alias(name)}${id}
     sql: >
-      SELECT rl.ad_ref_list_id, rl.value, rl.name AS name_base,
+      SELECT rl.ad_ref_list_id, rl.ad_client_id, rl.value, rl.name AS name_base,
              t.ad_language, t.name AS name
       FROM ad_ref_list rl
       LEFT JOIN ad_ref_list_trl t
              ON t.ad_ref_list_id = rl.ad_ref_list_id AND t.isactive = 'Y'
       WHERE rl.isactive = 'Y' AND rl.ad_reference_id = ${id}
+    joins:
+      # queryRewrite filters ad_client_id IN (tenant, 0) on every query, so a
+      # cube must be reachable from Client or the filter cannot resolve.
+      # Reference rows are all ad_client_id = 0, matched by the 0.
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
     dimensions:
       - name: id
         sql: "ad_ref_list_id || '-' || COALESCE(ad_language,'--')"
@@ -73,6 +80,10 @@ const body = DOMAINS.map(([id, name, title, users], i) => `
         title: Code
         sql: value
         type: string
+      - name: ad_client_id
+        sql: ad_client_id
+        type: number
+        public: false
       - name: ad_language
         sql: ad_language
         type: string

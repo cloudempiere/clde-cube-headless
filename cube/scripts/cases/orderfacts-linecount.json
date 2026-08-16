@@ -1,10 +1,27 @@
 {
-  "name": "Orderfacts.linecount equals completed non-proposal order lines in range",
+  "name": "Orderfacts.linecount equals completed non-proposal order lines in range, tenant-scoped",
   "cubeQuery": {
-    "measures": ["Orderfacts.linecount"],
-    "timeDimensions": [{ "dimension": "Orderfacts.dateordered", "granularity": "month",
-                         "dateRange": ["2026-01-01", "2026-08-31"] }]
+    "measures": [
+      "Orderfacts.linecount"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Orderfacts.dateordered",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
   },
-  "referenceSql": "SELECT count(*) AS value FROM c_order o JOIN c_orderline ol ON ol.c_order_id=o.c_order_id WHERE o.processed='Y' AND o.isproposal='N' AND o.dateordered >= DATE '2026-01-01' AND o.dateordered < DATE '2026-09-01'",
-  "tolerance": 0
+  "referenceSql": "SELECT count(*) AS value FROM c_order o JOIN c_orderline ol ON ol.c_order_id=o.c_order_id WHERE o.ad_client_id=1000026 AND o.processed='Y' AND o.isproposal='N' AND o.dateordered >= DATE '2026-01-01' AND o.dateordered < DATE '2026-09-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
 }

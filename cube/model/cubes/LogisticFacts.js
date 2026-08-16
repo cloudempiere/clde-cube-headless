@@ -352,6 +352,23 @@ cube(`Logisticfacts`, {
   },
 
   preAggregations: {
+    /**
+     * Bounded incremental rollup - same pattern as Orderfacts.ordersByMonth.
+     * Bounding is not optional: unbounded monthly partitioning over dirty
+     * dates produced 24,240 partitions on Orderfacts instead of ~294.
+     * Only additive measures; ratios are not safe to sum across a rollup.
+     */
+    byMonth: {
+      type: `rollup`,
+      measures: [Logisticfacts.shipmentcount, Logisticfacts.freightstopunloads, Logisticfacts.freightlinenetamt, Logisticfacts.freightweight],
+      dimensions: [Logisticfacts.ad_client_id],
+      timeDimension: Logisticfacts.shipdate,
+      granularity: `day`,
+      partition_granularity: `month`,
+      build_range_start: { sql: `SELECT DATE '2000-01-01'` },
+      build_range_end:   { sql: `SELECT CURRENT_DATE + INTERVAL '1 year'` },
+      refresh_key: { every: `1 day`, incremental: true, update_window: `90 day` },
+    },
 
     // shipcntday: {
     //   type: `rollup`,

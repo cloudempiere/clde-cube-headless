@@ -36,10 +36,38 @@ module.exports = {
     return ['tenant_user', ...roles];
   },
 
+  /**
+   * TENANT ISOLATION
+   *
+   * The rule is iDempiere's own: ad_client_id IN (tenant, 0).
+   *
+   *   transactional facts   tenant rows only - c_order, c_invoice and
+   *                         m_movement contain ZERO ad_client_id = 0 rows,
+   *                         so the 0 is harmless there
+   *   master and reference  tenant rows PLUS system defaults - c_uom has 37
+   *                         system rows, ad_ref_list 3,232, ad_org 1,
+   *                         c_bpartner 2
+   *
+   * One rule covers both. Earlier revisions kept an explicit list of "system
+   * cubes" to exempt, which was a maintenance hazard: register a new lookup
+   * cube late and every query touching it breaks.
+   *
+   * REGRESSION THIS RESTORES
+   *
+   * The 2020 model filtered values: [user.ad_client_id, 0]. The 2022 rewrite
+   * dropped the 0 - values: [context.ad_client_id] - so system-owned master
+   * data has been invisible since then: every reference value, 37 units of
+   * measure, the system org. This restores it.
+   *
+   * DENY BY DEFAULT
+   *
+   * 2022 applied its filter only when the claim was present, with no else, so
+   * a token without ad_client_id received every tenant's rows. Here a missing
+   * claim throws.
+   */
   queryRewrite: (query, { securityContext }) => {
     const tenant = securityContext?.ad_client_id;
 
-    // Deny, do not pass through. This is the 2022 defect.
     if (tenant === undefined || tenant === null || tenant === '') {
       throw new Error('Access denied: security context carries no ad_client_id');
     }
@@ -48,7 +76,7 @@ module.exports = {
     query.filters.push({
       member: 'Client.ad_client_id',
       operator: 'equals',
-      values: [String(tenant)],
+      values: [String(tenant), '0'],
     });
     return query;
   },

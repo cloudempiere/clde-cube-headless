@@ -21,6 +21,12 @@ cubes:
                                   AND t.isactive = 'Y'
       WHERE rl.isactive = 'Y'
 
+    joins:
+      # queryRewrite filters ad_client_id IN (tenant, 0) on every query.
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+
     dimensions:
       - name: id
         sql: "ad_ref_list_id || '-' || COALESCE(ad_language,'--')"

@@ -180,6 +180,41 @@ nothing hardcoded, one compiled model, one rollup set.
   order lines with no translation. Correcting them recovered 12 rows.
 
 
+
+### Tenant isolation: the rule
+
+**`ad_client_id IN (tenant, 0)`** — iDempiere's own convention, and it holds
+for every cube, so no per-cube exemption list is needed.
+
+| | System rows (`ad_client_id = 0`) | Filter |
+|---|---|---|
+| Transactional facts | `c_order` 0, `c_invoice` 0, `m_movement` 0 | tenant only, in effect |
+| Master and reference | `ad_ref_list` 3,232, `c_uom` 37, `ad_org` 1, `c_bpartner` 2 | tenant **plus** system defaults |
+
+Because the fact tables contain no system rows, including `0` is harmless
+there; because master data does, omitting it makes shared defaults invisible.
+One rule covers both.
+
+An earlier revision maintained an explicit list of "system cubes" to exempt
+from the tenant filter. That was a maintenance hazard — register a new lookup
+cube late and every query touching it fails — and it has been removed.
+
+**A regression this restores.** The 2020 model filtered
+`values: [user.ad_client_id, 0]`. The 2022 rewrite dropped the zero:
+
+```js
+// 2020
+values: [user.ad_client_id, 0]
+// 2022
+values: [context.ad_client_id]
+```
+
+So since 2022 every system-owned reference value, 37 units of measure and the
+system organisation have been invisible to queries. On this point the older
+model was the more correct one — worth remembering when treating the 2022
+repository as strictly newer.
+
+
 ### Constraints
 
 Nine are given; one is a choice.

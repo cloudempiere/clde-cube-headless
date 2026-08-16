@@ -48,3 +48,22 @@ cubes:
           - name: ad_client_id
             columns:
               - Client.ad_client_id
+
+    # Tenant isolation. IN (tenant, 0), NOT tenant alone: this is master or
+    # reference data and iDempiere ships system-owned rows at ad_client_id = 0 -
+    # 3,232 reference values, 37 units of measure, the system organisation. The
+    # 2022 model dropped the 0 and made all of it invisible; the fact cubes use
+    # tenant-only because transactional tables hold no ad_client_id = 0 rows.
+    #
+    # The "{ securityContext.x }" templating works ONLY in YAML. In JavaScript
+    # it passes through literally and matches nothing, silently - which is why
+    # these cubes had to be converted before a policy could be written.
+    access_policy:
+      - group: tenant_user
+        member_level:
+          includes: "*"
+        row_level:
+          filters:
+            - member: ad_client_id
+              operator: equals
+              values: ["{ securityContext.ad_client_id }", "0"]

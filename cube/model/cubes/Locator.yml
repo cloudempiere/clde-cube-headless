@@ -50,3 +50,20 @@ cubes:
         sql: value
         type: string
     pre_aggregations:
+
+    # NO row_level policy here, deliberately.
+    #
+    # Adding one removed 654 rows from the Inventory view - 253,158 -> 252,504.
+    # Warehouse facts JOIN this cube, and a row_level filter on a joined
+    # dimension does not just hide dimension rows, it DROPS FACT ROWS whose
+    # join finds no permitted match. 624 shipment lines reference a locator
+    # that is NULL or belongs to another ad_client_id, so filtering the locator
+    # silently reduced a shipment count.
+    #
+    # It bought no security either: the facts are already tenant-scoped by
+    # their own policies, and direct queries against this cube are covered by
+    # the global queryRewrite.
+    #
+    # The 624 cross-tenant locator references are a DATA issue in iDempiere
+    # worth raising separately - they are not something the semantic layer
+    # should paper over by dropping rows.

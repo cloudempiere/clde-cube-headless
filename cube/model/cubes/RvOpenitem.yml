@@ -80,14 +80,17 @@ cubes:
           COALESCE (p.name, 'Empty') as c_paymentterm_name,
           COALESCE (dl.name, 'No Dunning') as c_dunninglevel_name,
           i.c_bankaccount_id,
-          -- Identical to openamt above, deliberately left as a separate column
-          -- rather than silently aliased: the two are the SAME expression today,
-          -- which is a modelling question (what should "past due" mean when it
-          -- ignores duedate?) and not something to settle inside a rename.
-          currencyconvert(
-            COALESCE (invoiceopen(i.c_invoice_id, ips.c_invoicepayschedule_id),invoiceopen(i.c_invoice_id, 0)),
-            i.c_currency_id, acctccy.c_currency_id, i.dateacct, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id
-          ) AS pastdueamt,
+          -- REMOVED: a `pastdueamt` column, byte-identical to openamt above.
+          --
+          -- Nothing read it. The measure called pastdueamt is built on OPENAMT
+          -- with a `daysdue > 0` filter, which is the correct definition; this
+          -- column was a second copy that no member, view or script referenced.
+          --
+          -- It was not free. invoiceopen() is PL/pgSQL and the COALESCE calls it
+          -- twice per row, so the dead copy was 69 per cent of this query's
+          -- runtime - 3,134ms against 959ms without it, on 10,556 rows - and a
+          -- currencyconvert had just been added on top of it, converting a value
+          -- that was then discarded.
           i.docstatus AS duedaysrange_code
       FROM c_invoice i 
       LEFT JOIN c_invoicepayschedule ips ON i.c_invoice_id = ips.c_invoice_id AND i.ispaid ='N'

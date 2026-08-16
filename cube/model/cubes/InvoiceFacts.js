@@ -297,10 +297,14 @@ cube(`Invoicefacts`, {
     invoicesByMonth: {
       type: `rollup`,
       measures: [Invoicefacts.linecount, Invoicefacts.linenetamt, Invoicefacts.linetotalamt, Invoicefacts.qtyinvoiced],
-      dimensions: [Invoicefacts.ad_client_id, Invoicefacts.issotrx],
+      // Client.ad_client_id, NOT <Cube>.ad_client_id: queryRewrite filters on
+      // Client.ad_client_id, and a rollup only matches if the filtered member
+      // is one of its dimensions. Using the cube's own column silently
+      // disables the rollup for every tenant-scoped query.
+      dimensions: [Client.ad_client_id, Invoicefacts.issotrx],
       timeDimension: Invoicefacts.dateinvoiced,
       granularity: `day`,
-      partition_granularity: `month`,
+      partition_granularity: `year`,
       build_range_start: { sql: `SELECT DATE '2000-01-01'` },
       build_range_end:   { sql: `SELECT CURRENT_DATE + INTERVAL '1 year'` },
       refresh_key: {

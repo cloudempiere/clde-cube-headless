@@ -361,10 +361,14 @@ cube(`Logisticfacts`, {
     byMonth: {
       type: `rollup`,
       measures: [Logisticfacts.shipmentcount, Logisticfacts.freightstopunloads, Logisticfacts.freightlinenetamt, Logisticfacts.freightweight],
-      dimensions: [Logisticfacts.ad_client_id],
+      // Client.ad_client_id, NOT <Cube>.ad_client_id: queryRewrite filters on
+      // Client.ad_client_id, and a rollup only matches if the filtered member
+      // is one of its dimensions. Using the cube's own column silently
+      // disables the rollup for every tenant-scoped query.
+      dimensions: [Client.ad_client_id],
       timeDimension: Logisticfacts.shipdate,
       granularity: `day`,
-      partition_granularity: `month`,
+      partition_granularity: `year`,
       build_range_start: { sql: `SELECT DATE '2000-01-01'` },
       build_range_end:   { sql: `SELECT CURRENT_DATE + INTERVAL '1 year'` },
       refresh_key: { every: `1 day`, incremental: true, update_window: `90 day` },
@@ -375,7 +379,7 @@ cube(`Logisticfacts`, {
     //   //   measures: [Logisticfacts.shipmentcount],
     //   dimensions: [Client.ad_client_id, Logisticfacts.deliveryviarule],
     //   timeDimension: Logisticfacts.shipdate,
-    //   partition_granularity: `month`,
+    //   partition_granularity: `year`,
     //   granularity: `day`,
     //   scheduledRefresh: false
     // },
@@ -386,7 +390,7 @@ cube(`Logisticfacts`, {
     //   //   measures: [Logisticfacts.shipmentcount],
     //   dimensions: [Client.ad_client_id, Logisticfacts.c_docbasetype_name, Logisticfacts.driver_name, Logisticfacts.issotrx],
     //   timeDimension: Logisticfacts.shipdate,
-    //   partition_granularity: `month`,
+    //   partition_granularity: `year`,
     //   granularity: `day`,
     //   scheduledRefresh: false      
     // },
@@ -402,7 +406,7 @@ cube(`Logisticfacts`, {
     //   dimensions: [Client.ad_client_id, ad_org_id, driver_name, shippingregion, isshipped, c_docbasetype_name, documenttype, city, deliveryviarule, issotrx, bpartner, pickuptypes, m_shipper_name ],
     //   useOriginalSqlPreAggregations: true,
     //   timeDimension: shipdate,
-    //   partition_granularity: `month`,
+    //   partition_granularity: `year`,
     //   granularity: `day`,
     //   //scheduledRefresh: false,
     //   indexes: {

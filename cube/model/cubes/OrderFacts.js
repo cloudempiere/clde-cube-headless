@@ -480,20 +480,55 @@ cube(`Orderfacts`, {
      * historical ones are built once and never touched again.
      *
      * build_range_start/end BOUND the partitions. Without them Cube derives the
-     * range from the data, and 23 rows with typo'd years (0006 instead of 2006)
-     * would produce 24,240 monthly partitions instead of ~294. The cube SQL now
-     * also filters those rows out; this is belt and braces.
+     * range from the data, and 23 rows dated in years 0006-0028 would produce
+     * over 24,000 monthly partitions instead of ~140.
+     *
+     * Those rows are NOT simple typos. Their document numbers carry a trailing
+     * month/fiscal-year token running 07/0006..12/0006, 01/0007..06/0007 - a
+     * correctly incrementing July-June fiscal counter on a wrong epoch. 384
+     * orders (tenant 1000015) carry a malformed token; in 23 of them it was also
+     * parsed as a date and written into dateordered, reproducing the token
+     * exactly (token 11/0006 -> date 0006-11-13). The cube SQL floor at line 78
+     * excludes them, so a rollup and a source read agree - both drop them.
+     *
+     * build_range_start MUST EQUAL THE CUBE SQL FLOOR. DO NOT RAISE IT.
+     *
+     * It is tempting to raise it: 2000-2014 is 1% of order lines but 56% of the
+     * partitions, so starting at 2015 would more than halve a backfill that
+     * otherwise runs for hours. That was tried. It is WRONG, and it fails
+     * silently.
+     *
+     * Cube does NOT fall back to source when a query reaches past
+     * build_range_start. It answers from the rollup and drops the uncovered
+     * years, with no error and no warning. Measured on tenant 1000015 with
+     * build_range_start at 2015:
+     *
+     *   query   Orderfacts.linecount, 2010-01-01 .. 2026-08-31
+     *   correct 4,479,064
+     *   got     4,391,856   - 87,208 lines missing (1.95%)
+     *   buckets 2015..2026  - 2010-2014 simply absent from the result
+     *
+     * The rollup was used (dev_pre_aggregations.ord_orders_by_month) and the
+     * number looked entirely plausible. Any gap between the cube SQL floor and
+     * the rollup floor becomes a silent undercount for every query spanning it.
+     * If the backfill cost has to come down, raise the CUBE SQL floor too so
+     * the two stay equal - that removes the data from the model honestly,
+     * rather than leaving a range the layer answers incorrectly.
      *
      * refresh_key.updateWindow limits the incremental rebuild to the last
-     * 3 months, so a daily refresh touches 3 partitions, not 294.
+     * 3 months, so a daily refresh touches 3 partitions, not 140.
      */
     ordersByMonth: {
       type: `rollup`,
       measures: [Orderfacts.linecount, Orderfacts.ordercount, Orderfacts.qtyordered],
-      dimensions: [Orderfacts.ad_client_id, Orderfacts.issotrx, Orderfacts.orderstatus],
+      // Client.ad_client_id, NOT <Cube>.ad_client_id: queryRewrite filters on
+      // Client.ad_client_id, and a rollup only matches if the filtered member
+      // is one of its dimensions. Using the cube's own column silently
+      // disables the rollup for every tenant-scoped query.
+      dimensions: [Client.ad_client_id, Orderfacts.issotrx, Orderfacts.orderstatus],
       timeDimension: Orderfacts.dateordered,
       granularity: `day`,
-      partition_granularity: `month`,
+      partition_granularity: `year`,
       build_range_start: { sql: `SELECT DATE '2000-01-01'` },
       build_range_end:   { sql: `SELECT CURRENT_DATE` },
       refresh_key: {
@@ -502,6 +537,7 @@ cube(`Orderfacts`, {
         update_window: `90 day`,
       },
     },
+
   },
 
 });

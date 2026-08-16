@@ -435,10 +435,14 @@ cube(`Warehouse`, {
     byMonth: {
       type: `rollup`,
       measures: [Warehouse.linecount, Warehouse.doccount, Warehouse.qty],
-      dimensions: [Warehouse.ad_client_id],
+      // Client.ad_client_id, NOT <Cube>.ad_client_id: queryRewrite filters on
+      // Client.ad_client_id, and a rollup only matches if the filtered member
+      // is one of its dimensions. Using the cube's own column silently
+      // disables the rollup for every tenant-scoped query.
+      dimensions: [Client.ad_client_id],
       timeDimension: Warehouse.movementdate,
       granularity: `day`,
-      partition_granularity: `month`,
+      partition_granularity: `year`,
       build_range_start: { sql: `SELECT DATE '2000-01-01'` },
       build_range_end:   { sql: `SELECT CURRENT_DATE + INTERVAL '1 year'` },
       refresh_key: { every: `1 day`, incremental: true, update_window: `90 day` },
@@ -452,7 +456,7 @@ cube(`Warehouse`, {
       //   //   measures: [Warehouse.linecount, Warehouse.doccount, Warehouse.qty],
       //   dimensions: [Client.ad_client_id, Warehouse.c_docbasetype_name, Warehouse.picker],
       //   timeDimension: Warehouse.movementdate,
-      //   partition_granularity: `month`,
+      //   partition_granularity: `year`,
       //   granularity: `day`
       // },
 
@@ -467,7 +471,7 @@ cube(`Warehouse`, {
       //   dimensions: [Client.ad_client_id, Warehouse.picker, Warehouse.documenttype],
       //   useOriginalSqlPreAggregations: false,
       //   timeDimension: movementdate,
-      //   partition_granularity: `month`,
+      //   partition_granularity: `year`,
       //   granularity: `day`,
       //   scheduledRefresh: false,
       //   indexes: {
@@ -494,7 +498,7 @@ cube(`Warehouse`, {
     //     dimensions: [Client.ad_client_id, ad_org_id, locator, picker, direction, documenttype, product, prodcategory, bpartner ],
     //     useOriginalSqlPreAggregations: true,
     //     timeDimension: movementdate,
-    //     partition_granularity: `month`,
+    //     partition_granularity: `year`,
     //     granularity: `day`,
     //     scheduledRefresh: false,
     //     indexes: {

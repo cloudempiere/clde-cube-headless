@@ -1,0 +1,18 @@
+{
+  "name": "Uom includes the system units of measure",
+  "note": "The cube filtered `u.ad_client_id > 0`, excluding the 37 SYSTEM units at ad_client_id = 0 - exactly the rows the IN (tenant, 0) rule exists to include. Tenant 1000026 saw its own 7 instead of 44.\n\nThis is the same regression the 2022 model made by dropping the 0 from its tenant filter, still alive in this cube long after that was fixed elsewhere. Tenant scoping now comes from queryRewrite via the Client join, not from a predicate in the SQL.",
+  "cubeQuery": {
+    "measures": [
+      "Uom.count"
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_uom WHERE isactive='Y' AND ad_client_id IN (1000026,0)",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

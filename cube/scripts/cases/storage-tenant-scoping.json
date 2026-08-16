@@ -1,0 +1,28 @@
+{
+  "name": "Storage returns the querying tenant's transactions, not a hardcoded one",
+  "note": "The cube SQL contained `where t.ad_client_id=1000036` - a HARDCODED TENANT. Every other tenant saw an empty cube; tenant 1000026 alone has 7,579,460 m_transaction rows and got none of them. This measure returned 0.\n\nTwo more faults sat on the same line: the DATE filter was also applied to t.m_product_id, a product id, and dead experiments were left beside it - ad_client_id=11, a movementdate literal, M_Product_ID=1116440 and 1116428.\n\nFound by reading WHERE clauses while closing the coverage gap, not by any failing test - nothing had ever queried this cube.",
+  "cubeQuery": {
+    "measures": [
+      "Storage.movementqty"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Storage.movementdate",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-01-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT round(sum(t.movementqty),3) AS value FROM m_transaction t JOIN m_locator l ON l.m_locator_id=t.m_locator_id WHERE t.ad_client_id=1000026 AND t.movementdate >= DATE '2026-01-01' AND t.movementdate < DATE '2026-02-01'",
+  "tolerance": 0.0001,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

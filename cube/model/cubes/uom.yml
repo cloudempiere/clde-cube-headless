@@ -13,7 +13,14 @@ cubes:
              t.ad_language, t.uomsymbol AS symbol, t.name AS name
       FROM c_uom u
       LEFT JOIN c_uom_trl t ON t.c_uom_id = u.c_uom_id AND t.isactive = 'Y'
-      WHERE u.isactive = 'Y' AND u.ad_client_id > 0
+      -- No ad_client_id predicate here. It used to read `u.ad_client_id > 0`,
+      -- which excluded the 37 SYSTEM units of measure at ad_client_id = 0 - the
+      -- very rows the IN (tenant, 0) rule exists to include. Tenant 1000026 saw
+      -- 36 across all tenants where it should see 44. Same regression the 2022
+      -- model made by dropping the 0, still alive here.
+      --
+      -- Tenant scoping comes from queryRewrite via the Client join below.
+      WHERE u.isactive = 'Y'
 
     joins:
       # queryRewrite filters ad_client_id IN (tenant, 0) on every query.

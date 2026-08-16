@@ -25,14 +25,21 @@ cubes:
         t.movementqty
       FROM m_transaction t
       JOIN m_locator l ON l.m_locator_id = t.m_locator_id
-      --where t.ad_client_id=11
-      --WHERE 1=1 
-
-      where t.ad_client_id=1000036 AND {FILTER_PARAMS.Storage.date.filter('t.movementdate')} AND {FILTER_PARAMS.Storage.date.filter('t.m_product_id')}
-
-      --where t.movementdate > '2020-04-25' 
-      --where t.M_Product_ID=1116440  
-      --OR t.M_Product_ID=1116428
+      -- Was: where t.ad_client_id=1000036
+      --        AND <date filter on movementdate>
+      --        AND <date filter on m_product_id>
+      --
+      -- Three faults on one line, all shipped debugging leftovers.
+      --
+      -- 1. A HARDCODED TENANT. Every other tenant saw an empty cube. Tenant
+      --    1000026 alone has 7,579,460 m_transaction rows and this returned
+      --    none of them. Tenant scoping belongs to the access_policy, not
+      --    to the SQL.
+      -- 2. The DATE filter applied to t.m_product_id, a product id - a
+      --    copy-paste of the line before it.
+      -- 3. Dead experiments alongside it: ad_client_id=11, a movementdate
+      --    literal, M_Product_ID=1116440.
+      WHERE 1=1 AND {FILTER_PARAMS.Storage.date.filter('t.movementdate')}
     joins:
       - name: Client
         relationship: many_to_one

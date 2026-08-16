@@ -1,0 +1,18 @@
+{
+  "name": "Doctype resolves one row per doctype per language, none lost",
+  "note": "Guards the c_doctype_trl wiring. The cube CROSS JOINs the languages present in c_doctype_trl and LEFT JOINs the translation, so the count must equal the number of doctypes - not seven times it, and not less.\n\nBoth failure modes are real. Without the ad_language filter in the access_policy the cube returns a row per doctype PER LANGUAGE and multiplies any fact joined to it by seven. With a plain LEFT JOIN instead of the cross join, es_CO loses 7 of 1,343 doctypes, because that language is the only one with gaps in c_doctype_trl - the same silent row loss that cost 654 rows when a policy was added to Locator.\n\nMeasured identical at 239 across en_US, sk_SK, hu_HU and es_CO.",
+  "cubeQuery": {
+    "measures": [
+      "Doctype.count"
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_doctype WHERE ad_client_id IN (1000036,0)",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000036,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

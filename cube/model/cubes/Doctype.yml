@@ -11,14 +11,41 @@
 
 cubes:
   - name: Doctype
+    # Translated document type names, resolved per security-context language.
+    #
+    # c_doctype_trl holds real translations - 251 Slovak, 291 Czech, 287
+    # Hungarian, 295 Spanish - and the model ignored all of them, showing the
+    # English base name to every user. It matters most on the two largest
+    # tenants: roughly 154,000 invoice lines since 2024 carry a doctype that HAS
+    # a Slovak name and displayed the English one.
+    #
+    # CROSS JOIN, not the plain LEFT JOIN the reference domains use.
+    #
+    # That pattern works there because every ad_ref_list row has a row in every
+    # language. c_doctype_trl does not: es_CO is missing 7 of 1,343. With a plain
+    # LEFT JOIN plus the ad_language policy below, those 7 doctypes would simply
+    # disappear for Spanish users - the same silent row loss that cost 654 rows
+    # when a policy was added to Locator.
+    #
+    # Cross joining the languages present in the table and LEFT JOINing the
+    # translation gives one row per (doctype, language) whether or not a
+    # translation exists, with COALESCE falling back to the base name. Adding a
+    # language stays an INSERT; nothing here hardcodes a language list.
     sql: |2
-      SELECT 
+      SELECT
         dt.ad_client_id,
         dt.updated,
         dt.c_doctype_id,
         dt.docbasetype,
-        dt.name
+        dt.name AS name_base,
+        l.ad_language,
+        COALESCE(t.name, dt.name) AS name
       FROM c_doctype dt
+      CROSS JOIN (SELECT DISTINCT ad_language FROM c_doctype_trl WHERE isactive = 'Y') l
+      LEFT JOIN c_doctype_trl t
+             ON t.c_doctype_id = dt.c_doctype_id
+            AND t.ad_language  = l.ad_language
+            AND t.isactive     = 'Y'
     joins:
       - name: Client
         relationship: many_to_one
@@ -35,6 +62,13 @@ cubes:
         sql: ad_client_id
         type: count
     dimensions:
+      # Filtered by the access_policy below, never selected. Without one
+      # language pinned per request this cube returns a row per doctype PER
+      # LANGUAGE, and any join to it multiplies the fact by seven.
+      - name: ad_language
+        sql: ad_language
+        type: string
+        public: false
       - name: ad_client_id
         sql: ad_client_id
         type: number
@@ -46,12 +80,22 @@ cubes:
         type: number
         primary_key: true
         public: true
-      - name: ad_client_name
-        title: Client
+      # Replaces a dimension named ad_client_name, titled "Client", whose sql
+      # was the DOCTYPE name and which declared a SECOND primary_key on the
+      # cube. Three faults in five lines: wrong name, wrong title, and a
+      # composite key Cube would have trusted.
+      - name: name
+        title: Document Type
+        description: Document type name in the security context language, falling back to the base name where no translation exists
         sql: name
         type: string
-        primary_key: true
-        public: false
+        public: true
+      - name: docbasetype
+        title: Document Base Type
+        description: Three-character iDempiere base type - ARI, API, ARC, APC and so on
+        sql: docbasetype
+        type: string
+        public: true
     pre_aggregations:
 
     # Tenant isolation. IN (tenant, 0), NOT tenant alone: this is master or
@@ -72,3 +116,8 @@ cubes:
             - member: ad_client_id
               operator: equals
               values: ["{ securityContext.ad_client_id }", "0"]
+            # Not optional: this is what collapses the cross join back to one
+            # row per doctype.
+            - member: ad_language
+              operator: equals
+              values: ["{ securityContext.ad_language }"]

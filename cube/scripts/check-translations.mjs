@@ -21,10 +21,27 @@
  * reported here is an iDempiere DATA task - translate the reference list - not
  * a change to the semantic layer.
  *
- * At the time of writing: OpenItemAging 100% English, DocumentStatus 20%,
- * DocBaseType 4%, and the other eight domains fully translated. That last part
- * matters too: it shows the translation pipeline itself works, so a domain
- * appearing here is missing content, not broken plumbing.
+ * At the time of writing, per LABEL across the eleven modelled domains
+ * (143 labels each, excluding en_US which is the base):
+ *
+ *     es_CO   74 / 143   51.7% still English
+ *     hu_HU   70 / 143   49.0%
+ *     cs_CZ   68 / 143   47.6%
+ *     sk_SK   27 / 143   18.9%
+ *
+ * Count LABELS, not domains. Counting domains-with-any-gap gives "9 of 11 for
+ * Czech", which reads as though Czech were barely translated - it is about
+ * half, and several domains have a single missing entry. The label figure is
+ * the one that describes what a user sees.
+ *
+ * Worst single domain for Slovak: OpenItemAging, 22 of 22 English.
+ * DocumentStatus 3 of 15, DocBaseType 2 of 55, the other eight complete - which
+ * shows the translation PIPELINE works, so a domain appearing here is missing
+ * content rather than broken plumbing.
+ *
+ * ad_ref_list and ad_ref_list_trl are system-owned: ad_client_id is always 0,
+ * one row per (label, language), no tenant variation. So these figures are the
+ * same for every tenant.
  */
 import pg from 'pg';
 
@@ -100,10 +117,15 @@ for (const r of scored) {
   );
 }
 
+const labels  = scored.reduce((a, r) => a + Number(r.rows), 0);
+const english = scored.reduce((a, r) => a + Number(r.english), 0);
 console.log(
-  `\n  Anything above 0% is an iDempiere data task - translate the reference\n` +
-  `  list - not a change to the semantic layer. The domains at 0% show the\n` +
-  `  translation pipeline itself works.\n`
+  `\n  ${english} of ${labels} labels still English ` +
+  `(${((english / labels) * 100).toFixed(1)}%)\n` +
+  `\n  Counted per LABEL, not per domain: several domains have a single gap, so\n` +
+  `  "N of 11 domains affected" overstates how much a user actually sees.\n` +
+  `\n  Everything here is an iDempiere data task - translate the reference list -\n` +
+  `  not a change to the semantic layer. Domains at 0% show the pipeline works.\n`
 );
 
 if (worst > FAIL_OVER) {

@@ -1,4 +1,3 @@
-import { transformToBoolean } from './helpers';
 
 cube(`Cashflowplan`, {
   sql: 
@@ -265,7 +264,7 @@ order by cpl.DateTrx ASC
 
     cashplanprocessed: {
       title: `Cashplan Realised`,
-      sql: `${transformToBoolean('processed')}`,
+      sql: `processed`,
       type: `boolean`
     }
 

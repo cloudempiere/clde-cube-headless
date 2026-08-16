@@ -1,4 +1,3 @@
-import { transformToBoolean } from './helpers';
 
 cube(`Bankaccount`, {
   sql: `
@@ -121,7 +120,7 @@ cube(`Bankaccount`, {
     },
     
     isactive: {
-      sql: `${transformToBoolean('isactive')}`,
+      sql: `isactive`,
       type: `boolean`
     },
     

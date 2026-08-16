@@ -1,0 +1,302 @@
+# GENERATED from RvOpenitem.js by scripts/js2yaml.mjs
+#
+# Converted, NOT reviewed. Two things this cannot decide for you:
+#   - access_policy is absent. Adding it is the reason to be in YAML at all,
+#     but it is a security decision and has to be written deliberately.
+#   - helpers (none) are EXPANDED inline, so the shared
+#     abstraction is gone and edits to helpers.js no longer reach this file.
+#
+# Verify with `cubejs validate`, then scripts/validate.mjs. Compiling is not
+# the same as returning the same numbers.
+
+cubes:
+  - name: Openitem
+    sql: |2
+        SELECT 
+          i.ad_org_id,
+          i.ad_client_id,
+          i.documentno,
+          i.c_invoice_id,
+          i.c_bpartner_id,
+          i.issotrx,
+          i.dateinvoiced,
+          i.dateacct,
+          daysbetween(ips.duedate,i.dateinvoiced) AS netdays,
+          COALESCE (paymenttermduedate(i.c_paymentterm_id, i.dateinvoiced),ips.duedate) AS duedate,
+          COALESCE (paymenttermduedays(i.c_paymentterm_id, i.dateinvoiced, getdate()),daysbetween(getdate(), ips.duedate) ) AS daysdue,
+          COALESCE(i.estimatedpaydate::timestamp with time zone, paymenttermduedate(i.c_paymentterm_id, i.dateinvoiced::timestamp with time zone)) AS estimatedpaydate,
+
+          CASE
+          WHEN charat(dt.docbasetype::character varying, 3)::text = 'C'::text THEN COALESCE (ips.dueamt, i.grandtotal) * -1
+          ELSE COALESCE (ips.dueamt, i.grandtotal)
+          END AS grandtotal,
+
+          COALESCE (invoiceopen(i.c_invoice_id, ips.c_invoicepayschedule_id),invoiceopen(i.c_invoice_id, 0)) AS openamt,
+
+          i.chargeamt,
+          i.c_currency_id,
+          i.c_conversiontype_id,
+          i.c_paymentterm_id,
+          i.ispayschedulevalid,
+          COALESCE (ips.c_invoicepayschedule_id, NULL) as c_invoicepayschedule_id,
+          i.invoicecollectiontype,
+          i.c_campaign_id,
+          i.c_project_id,
+          i.c_activity_id,
+          i.ad_orgtrx_id,
+          i.ad_user_id,
+          i.c_bpartner_location_id,
+          i.c_charge_id,
+          i.c_doctype_id,
+          i.c_doctypetarget_id,
+          i.c_dunninglevel_id,
+          i.c_payment_id,
+          i.created,
+          i.createdby,
+          i.dateprinted,
+          i.docstatus,
+          i.dunninggrace,
+          i.isactive,
+          i.isapproved,
+          i.isindispute,
+          i.ispaid,
+          i.isprinted,
+          i.istaxincluded,
+          i.istransferred,
+          i.paymentrule,
+          i.poreference,
+          i.salesrep_id,
+          i.user1_id,
+          i.user2_id,
+          COALESCE (p.name, 'Empty') as c_paymentterm_name,
+          COALESCE (dl.name, 'No Dunning') as c_dunninglevel_name,
+          i.c_bankaccount_id,
+          COALESCE (invoiceopen(i.c_invoice_id, ips.c_invoicepayschedule_id),invoiceopen(i.c_invoice_id, 0)) AS pastdueamt,
+          i.docstatus AS duedaysrange_code
+      FROM c_invoice i 
+      LEFT JOIN c_invoicepayschedule ips ON i.c_invoice_id = ips.c_invoice_id AND i.ispaid ='N'
+      LEFT JOIN C_DunningLevel dl ON dl.C_DunningLevel_ID=i.C_DunningLevel_ID
+      LEFT JOIN c_acctschema ac ON ac.ad_client_id = i.ad_client_id AND (ac.ad_orgonly_id = i.ad_org_id)
+      JOIN c_doctype dt ON i.c_doctype_id = dt.c_doctype_id
+      JOIN c_paymentterm p  ON i.c_paymentterm_id = p.c_paymentterm_id
+      WHERE ispaid ='N' AND 1=1
+      AND i.dateinvoiced >= DATE '2000-01-01' AND i.dateinvoiced < CURRENT_DATE + INTERVAL '1 year'
+    joins:
+      - name: OpenItemAging
+        relationship: many_to_one
+        sql: "{CUBE}.duedaysrange_code = {OpenItemAging}.value"
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
+      - name: Organization
+        relationship: one_to_many
+        sql: "{CUBE}.ad_org_id = {Organization}.ad_org_id"
+      - name: Businesspartner
+        relationship: one_to_many
+        sql: "{CUBE}.c_bpartner_id = {Businesspartner}.c_bpartner_id"
+      - name: User
+        relationship: one_to_many
+        sql: "{CUBE}.salesrep_id = {User}.ad_user_id"
+      - name: Bankaccount
+        relationship: one_to_many
+        sql: "{CUBE}.c_bankaccount_id = {Bankaccount}.c_bankaccount_id"
+    segments:
+      - name: OpenItemsSales
+        sql: "{CUBE}.issotrx = 'Y'"
+      - name: OpenItemsPurchase
+        sql: "{CUBE}.issotrx = 'N'"
+    title: Open Items
+    description: Business Partner Open Items
+    sql_alias: opi
+    measures:
+      - name: count
+        type: count
+      - name: grandtotal
+        title: Grand Total
+        description: Invoice Grand Total
+        sql: "ROUND(grandtotal,0)"
+        type: sum
+      - name: openamt
+        title: Open Amount
+        sql: "ROUND(openamt,0)"
+        type: sum
+      - name: openamtnatural
+        title: Open Amount Natural
+        sql: "CASE WHEN issotrx='false' THEN openamt * -1 ELSE openamt END"
+        type: sum
+        public: true
+      - name: openitembal
+        title: Estimated Balance from Open Items
+        sql: "CASE WHEN issotrx='false' THEN openamt * -1 ELSE openamt END"
+        type: sum
+        rollingWindow:
+          trailing: unbounded
+          leading: "1 day"
+          offset: start
+      - name: dueamt
+        title: Due Amount
+        sql: "COALESCE(ROUND(openamt,0),0)"
+        type: sum
+        filters:
+          - sql: "{CUBE}.daysdue < 0"
+      - name: pastdueamt
+        title: Past Due Amt
+        sql: "COALESCE(ROUND(openamt,0),0)"
+        type: sum
+        filters:
+          - sql: "{CUBE}.daysdue > 0"
+      - name: pastdue1_7
+        title: Past Due 1-7
+        description: All invoice value over 1 - 7 days
+        sql: "ROUND(openamt,0)"
+        type: sum
+        filters:
+          - sql: "{CUBE}.daysdue BETWEEN 1 AND 7"
+      - name: pastdue8_30
+        title: Past Due 8-30
+        description: All invoice value over 8 - 30 days
+        sql: "ROUND(openamt,0)"
+        type: sum
+        filters:
+          - sql: "{CUBE}.daysdue BETWEEN 8 AND 30"
+      - name: pastdue31_60
+        title: Past Due 31-60
+        description: All invoice value over 31 - 60 days
+        sql: "ROUND(openamt,0)"
+        type: sum
+        filters:
+          - sql: "{CUBE}.daysdue BETWEEN 31 AND 60"
+      - name: pastdue61_90
+        title: Past Due 61-90
+        description: All invoice value over 61 - 90 days
+        sql: "ROUND(openamt,0)"
+        type: sum
+        filters:
+          - sql: "{CUBE}.daysdue BETWEEN 61 AND 90"
+      - name: pastdue91_180
+        title: Past Due 91-180
+        description: All invoice value over 91 - 180 days
+        sql: "ROUND(openamt,0)"
+        type: sum
+        filters:
+          - sql: "{CUBE}.daysdue BETWEEN 91 AND 180"
+      - name: pastdue181_365
+        title: Past Due 181-365
+        description: All invoice value over 181 - 365 days
+        sql: "ROUND(openamt,0)"
+        type: sum
+        filters:
+          - sql: "{CUBE}.daysdue BETWEEN 181 AND 365"
+      - name: pastdue366plus
+        title: "Past Due 365+"
+        description: "All invoice value over 365+ days"
+        sql: "ROUND(openamt,0)"
+        type: sum
+        filters:
+          - sql: "{CUBE}.daysdue > 365"
+    dimensions:
+      - name: ad_client_id
+        title: Client
+        sql: ad_client_id
+        type: number
+        public: false
+      - name: ad_org_id
+        sql: ad_org_id
+        type: number
+        public: false
+      - name: c_invoice_id
+        sql: c_invoice_id
+        type: number
+        primary_key: true
+        public: false
+      - name: c_bpartner_id
+        title: Bpartner ID
+        sql: c_bpartner_id
+        type: number
+        public: false
+      - name: c_paymentterm_name
+        sql: c_paymentterm_name
+        type: string
+      - name: c_dunninglevel_name
+        sql: c_dunninglevel_name
+        type: string
+      - name: paymentrule
+        sql: paymentrule
+        type: string
+      - name: issotrx
+        sql: issotrx
+        type: boolean
+      - name: estimatedpaydate
+        sql: estimatedpaydate
+        type: time
+      - name: dateinvoiced
+        sql: dateinvoiced
+        type: time
+      - name: duedate
+        sql: duedate
+        type: time
+      - name: documentno
+        sql: documentno
+        type: string
+      - name: daysdue
+        title: Days Due
+        sql: daysdue
+        type: number
+      - name: duedaysrange
+        title: Due Days Range
+        description: Range of Due Days
+        type: string
+        public: true
+        case:
+          when:
+            - sql: "{CUBE}.daysdue BETWEEN 1 AND 7"
+              label: PD-01-07
+            - sql: "{CUBE}.daysdue BETWEEN 8 AND 30"
+              label: PD-08-30
+            - sql: "{CUBE}.daysdue BETWEEN 31 AND 60"
+              label: PD-31-60
+            - sql: "{CUBE}.daysdue BETWEEN 61 AND 90"
+              label: PD-61-90
+            - sql: "{CUBE}.daysdue BETWEEN 91 AND 180"
+              label: PD-91-180
+            - sql: "{CUBE}.daysdue BETWEEN 181 AND 365"
+              label: PD-181-365
+            - sql: "{CUBE}.daysdue > 365"
+              label: "PD-365+"
+            - sql: "{CUBE}.daysdue BETWEEN -7 AND 1"
+              label: ND-01-07
+            - sql: "{CUBE}.daysdue BETWEEN -30 AND -8"
+              label: ND-08-30
+            - sql: "{CUBE}.daysdue BETWEEN -60 AND -31"
+              label: ND-31-60
+            - sql: "{CUBE}.daysdue BETWEEN -90 AND -61"
+              label: ND-61-90
+            - sql: "{CUBE}.daysdue BETWEEN -181 AND -90"
+              label: ND-91-180
+            - sql: "{CUBE}.daysdue BETWEEN -365 AND -181"
+              label: ND-181-365
+            - sql: "{CUBE}.daysdue < -365"
+              label: "ND-365+"
+          else:
+            label: Unknown
+    pre_aggregations:
+      - name: byMonth
+        type: rollup
+        measures:
+          - Openitem.count
+          - Openitem.grandtotal
+          - Openitem.openamt
+          - Openitem.dueamt
+        dimensions:
+          - Client.ad_client_id
+        time_dimension: Openitem.dateinvoiced
+        granularity: day
+        partition_granularity: year
+        build_range_start:
+          sql: "SELECT DATE '2000-01-01'"
+        build_range_end:
+          sql: "SELECT CURRENT_DATE + INTERVAL '1 year'"
+        refresh_key:
+          every: "1 day"
+          incremental: true
+          update_window: "90 day"

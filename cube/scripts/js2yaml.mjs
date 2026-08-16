@@ -50,6 +50,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { fileURLToPath } from 'node:url';
 
 const REF = Symbol('ref');
 
@@ -120,12 +121,38 @@ function scalar(v) {
   return `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
+/**
+ * Emit a literal block scalar, dedented by the COMMON leading whitespace.
+ *
+ * A fixed strip (the first version took up to 6 spaces off each line) breaks
+ * whenever the source SQL is inconsistently indented, and this SQL is. A YAML
+ * block scalar takes its indentation from its FIRST non-empty line; any later
+ * line that is less indented ENDS the block, and YAML then parses the rest as
+ * mappings. With SQL that means the next colon becomes a mapping separator:
+ *
+ *     CASE
+ *     WHEN charat (dt.docbasetype: ...     <- read as a YAML key
+ *   END AS linepricelist,                  <- "bad indentation of a mapping entry"
+ *
+ * because `CASE` sat at 8 spaces and `END AS` at 6.
+ *
+ * Dedenting by the smallest indentation is NOT enough on its own: the base is
+ * taken from the first line, and here the first line is not the least indented
+ * one. So this also emits the explicit indentation indicator - `|2` - which
+ * fixes the base at 2 beyond the key regardless of what the first line looks
+ * like. Content is always emitted at key indent + 2, so the indicator is
+ * always 2.
+ */
 function block(value, indent) {
   const pad = ' '.repeat(indent);
-  const body = String(value).replace(/^\s*\n/, '').replace(/\s+$/, '').split('\n')
-    .map(l => (l.trim() ? pad + l.replace(/^\s{0,6}/, '') : ''))
+  const lines = String(value).replace(/^\s*\n/, '').replace(/\s+$/, '').split('\n');
+  const common = Math.min(
+    ...lines.filter(l => l.trim()).map(l => l.match(/^ */)[0].length)
+  );
+  const body = lines
+    .map(l => (l.trim() ? pad + l.slice(common) : ''))
     .join('\n');
-  return `|\n${body}`;
+  return `|2\n${body}`;
 }
 
 function emit(obj, indent, parentKey) {
@@ -149,8 +176,29 @@ function emit(obj, indent, parentKey) {
       continue;
     }
 
+    // Any other array becomes a YAML sequence. Covers measure
+    // `filters: [{ sql }]` and the `when:` list of a case dimension. Without
+    // this the array falls through to scalar(), stringifies to
+    // "[object Object]", and Cube rejects it with "measures.x.filters must be
+    // an array" - which reads like a model error rather than a converter gap.
+    if (Array.isArray(value)) {
+      out.push(`${pad}${key}:`);
+      for (const item of value) {
+        if (item && typeof item === 'object' && !isRef(item)) {
+          // emit() indents every line by indent+4; the first line loses exactly
+          // that much so the "- " marker lands at indent+2 and the remaining
+          // keys stay aligned beneath it.
+          const body = emit(item, indent + 4, key);
+          out.push(body.replace(new RegExp(`^ {${indent + 4}}`), `${pad}  - `));
+        } else {
+          out.push(`${pad}  - ${isRef(item) ? item[REF] : scalar(item)}`);
+        }
+      }
+      continue;
+    }
+
     // { sql: `...` } wrappers (build_range_start, refresh_key)
-    if (value && typeof value === 'object' && !Array.isArray(value) && !isRef(value)) {
+    if (value && typeof value === 'object' && !isRef(value)) {
       // named collections: measures/dimensions/joins/pre_aggregations objects
       const named = ['measures', 'dimensions', 'segments', 'joins', 'pre_aggregations', 'hierarchies'];
       if (named.includes(key)) {
@@ -188,7 +236,12 @@ const helpersUsed = [...src.matchAll(/import\s*\{([^}]+)\}\s*from\s*'\.\/helpers
   .flatMap(m => m[1].split(',').map(s => s.trim()));
 src = src.replace(/^import[^\n]*\n/gm, '');
 
-const helpers = await import(path.resolve(path.dirname(file), '..', 'helpers.js'));
+// Resolve helpers relative to THIS SCRIPT, not to the input file. Resolving
+// from the input breaks the moment a .js is read from anywhere but model/cubes
+// - converting an original parked in /tmp looked for /tmp/helpers.js and died.
+const helpers = await import(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'model', 'helpers.js')
+);
 
 const cubes = [];
 const sandbox = new Proxy({

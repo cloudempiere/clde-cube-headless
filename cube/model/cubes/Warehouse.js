@@ -19,14 +19,8 @@ cube(`Warehouse`, {
           dt.docbasetype,
           dt.docbasetype AS c_docbasetype_name_code,
           m.docstatus,
-          CASE 
-            WHEN m.processed='Y' THEN 'true'
-            ELSE 'false'
-          END as processed,
-          CASE 
-            WHEN dt.issotrx='Y' THEN 'true'
-            ELSE 'false'
-          END as issotrx,
+          m.processed,
+          dt.issotrx,
           salesrep_id,
           ml.m_product_id,
           m.c_bpartner_id,
@@ -58,14 +52,8 @@ cube(`Warehouse`, {
           dt.docbasetype,
           dt.docbasetype AS c_docbasetype_name_code,
           ioc.docstatus,
-          CASE 
-            WHEN ioc.processed='Y' THEN 'true'
-            ELSE 'false'
-          END as processed,
-          CASE 
-            WHEN dt.issotrx='Y' THEN 'true'
-            ELSE 'false'
-          END as issotrx,
+          ioc.processed,
+          dt.issotrx,
           ioc.salesrep_id,
           iol.m_product_id,
           io.c_bpartner_id,
@@ -99,13 +87,8 @@ cube(`Warehouse`, {
           dt.docbasetype,
           dt.docbasetype AS c_docbasetype_name_code,
           io.docstatus,
-          CASE 
-            WHEN io.processed='Y' THEN 'true'
-            ELSE 'false'
-          END as processed,
-          CASE 
-            WHEN dt.issotrx='Y' THEN 'true'
-            ELSE 'false'  END as issotrx,
+          io.processed,
+          dt.issotrx,
           io.salesrep_id,
           iol.m_product_id,
           io.c_bpartner_id,
@@ -136,14 +119,8 @@ cube(`Warehouse`, {
           dt.docbasetype,
           dt.docbasetype AS c_docbasetype_name_code,
           p.docstatus,
-          CASE 
-            WHEN p.processed='Y' THEN 'true'
-            ELSE 'false'
-          END as processed,
-          CASE 
-            WHEN dt.issotrx='Y' THEN 'true'
-            ELSE 'false'
-          END as issotrx,
+          p.processed,
+          dt.issotrx,
           p.salesrep_id,
           pl.m_product_id,
           p.c_bpartner_id,
@@ -175,14 +152,8 @@ cube(`Warehouse`, {
           dt.docbasetype,
           dt.docbasetype AS c_docbasetype_name_code,
           i.docstatus,
-          CASE 
-            WHEN i.processed='Y' THEN 'true'
-            ELSE 'false'
-          END as processed,
-          CASE 
-            WHEN dt.issotrx='Y' THEN 'true'
-            ELSE 'false' 
-          END as issotrx,
+          i.processed,
+          dt.issotrx,
           i.salesrep_id,
           il.m_product_id,
           0 as c_bpartner_id,
@@ -265,10 +236,10 @@ cube(`Warehouse`, {
 
     segments: {
         Inbound: {
-          sql: `${CUBE}.issotrx = 'false'`
+          sql: `${CUBE}.issotrx = 'N'`
         },
         Outbound: {
-          sql: `${CUBE}.issotrx = 'true'`
+          sql: `${CUBE}.issotrx = 'Y'`
         }
       },
 

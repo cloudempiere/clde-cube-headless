@@ -12,8 +12,25 @@
 cubes:
   - name: Session
     sql: |2
+      -- ad_client_id carries the REAL tenant. It used to be forced to 0, with
+      -- the true value hidden in ad_tenant_id:
+      --
+      --     0::numeric AS ad_client_id,
+      --     s.ad_client_id AS ad_tenant_id,
+      --
+      -- That defeats tenant isolation completely. Every policy and the global
+      -- queryRewrite filter ad_client_id, so with it pinned to 0 an
+      -- IN (tenant, 0) rule matches ALL 312,400 sessions across all 11 tenants -
+      -- and this cube carries login telemetry: remote_addr, remote_host,
+      -- loginname, rolename, orgname, servername, websession.
+      --
+      -- It was not leaking, only because the cube had no join to Client, so
+      -- queryRewrite could not resolve and every query failed with "Can't find
+      -- join path to join 'Session', 'Client'". The obvious fix for that error -
+      -- adding the join - would have turned a broken cube into a cross-tenant
+      -- leak. Both are fixed together here.
       SELECT s.ad_session_id,
-           0::numeric AS ad_client_id,
+           s.ad_client_id,
            s.ad_client_id AS ad_tenant_id,
            0::numeric(10,0) AS ad_org_id,
            s.isactive,
@@ -33,8 +50,12 @@ cubes:
            substr(u.name::text, 1, 60) AS loginname,
            to_char(now() - s.created::timestamp with time zone, 'HH24:MI:SS'::text) AS duration,
            s.processed,
-           r.businessfunction,
-           r.allowedlogininterface
+           r.businessfunction
+           -- r.allowedlogininterface removed: the column does not exist in this
+           -- iDempiere version, so every query on this cube failed with
+           -- "column r.allowedlogininterface does not exist". Third defect in
+           -- the same cube, after the masked tenant and the missing Client
+           -- join - it could never have returned a row.
        FROM ad_session s
          JOIN ad_user u ON s.createdby = u.ad_user_id
          LEFT JOIN ad_role r ON s.ad_role_id = r.ad_role_id
@@ -48,6 +69,12 @@ cubes:
         title: Total Count
         sql: ad_session_id
         type: count
+    joins:
+      # Without this queryRewrite cannot resolve and every query on this cube
+      # fails outright.
+      - name: Client
+        relationship: many_to_one
+        sql: "{CUBE}.ad_client_id = {Client}.ad_client_id"
     dimensions:
       - name: ad_client_id
         title: Client ID
@@ -60,6 +87,10 @@ cubes:
         description: Session primary key
         sql: ad_session_id
         type: number
+        # Declared once the Client join was added - Cube requires a primary key
+        # on any cube that participates in a join. Its absence is further
+        # evidence this cube had never been joined or queried.
+        primary_key: true
         public: false
       - name: clientname
         title: Client Nane

@@ -1,0 +1,18 @@
+{
+  "name": "Forecast counts forecast LINES, not forecast headers",
+  "note": "First reference here counted m_forecast headers and expected 4 against the cube's 117,347. The CUBE was right: its SQL joins m_forecastline and c_period, so the grain is one row per forecast line per period. My reference was wrong, not the model - worth recording, because a mismatch is not automatically a model defect and treating it as one wastes the signal.",
+  "cubeQuery": {
+    "measures": [
+      "Forecast.count"
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM m_forecast f JOIN m_forecastline fl ON f.m_forecast_id=fl.m_forecast_id JOIN c_period p ON p.c_period_id=fl.c_period_id WHERE f.ad_client_id IN (1000026,0)",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

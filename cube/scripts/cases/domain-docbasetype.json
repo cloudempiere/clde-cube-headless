@@ -1,0 +1,18 @@
+{
+  "name": "DocBaseType returns one row per label, not one per language",
+  "note": "Reference-domain count. The real risk here is the LANGUAGE join: each domain cube LEFT JOINs ad_ref_list_trl, which holds a row per label per language. Without the ad_language filter in its access_policy the cube returns five rows per label and multiplies any fact joined to it. This asserts one row per label.",
+  "cubeQuery": {
+    "measures": [
+      "DocBaseType.count"
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM ad_ref_list WHERE isactive='Y' AND ad_reference_id=183",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

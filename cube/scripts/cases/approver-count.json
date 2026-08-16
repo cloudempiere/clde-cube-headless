@@ -1,0 +1,18 @@
+{
+  "name": "Approver count matches ad_user, tenant-scoped",
+  "note": "Coverage for a cube nothing had queried. The last two such cubes - Storage and Uom - turned out to carry a hardcoded tenant and an excluded-system-rows filter respectively, both invisible until something asked them for a number.",
+  "cubeQuery": {
+    "measures": [
+      "Approver.count"
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM ad_user WHERE ad_client_id IN (1000026,0)",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

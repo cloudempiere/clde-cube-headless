@@ -1,0 +1,18 @@
+{
+  "name": "Session is queryable and scoped to the querying tenant",
+  "note": "Two defects in one cube, and the second was hidden by the first.\n\nThe SQL forced `0::numeric AS ad_client_id`, stashing the real tenant in ad_tenant_id. Every policy and the global queryRewrite filter ad_client_id, so an IN (tenant, 0) rule matched ALL 312,400 sessions across 11 tenants - and this cube carries login telemetry: remote_addr, remote_host, loginname, rolename, orgname, servername, websession.\n\nIt was not leaking, only because the cube had no join to Client, so queryRewrite could not resolve and every query failed with \"Can't find join path to join 'Session', 'Client'\". The obvious fix for that error - adding the join - would have converted a broken cube into a cross-tenant leak. Both are fixed together: real ad_client_id, Client join, and the primary key Cube requires on a joined cube (whose absence showed this had never been joined or queried).\n\n58,759 of 312,400 sessions belong to tenant 1000026.",
+  "cubeQuery": {
+    "measures": [
+      "Session.count"
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM ad_session WHERE ad_client_id IN (1000026,0)",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

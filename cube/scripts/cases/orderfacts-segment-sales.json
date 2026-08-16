@@ -1,0 +1,31 @@
+{
+  "name": "Orderfacts Sales segment selects issotrx orders only, tenant-scoped",
+  "note": "Covers a surface no other case touches: SEGMENTS. The segment is written as {CUBE}.issotrx = 'true', comparing against the STRING the cube SQL produces via CASE WHEN issotrx='Y' THEN 'true'. That coupling is invisible from the dimension: Cube's type: boolean converts 'Y'/'N' by itself, so the CASE looks removable, and removing it leaves the column holding 'Y'/'N' while the segment still tests for 'true' - matching zero rows, silently, with every measure case still green. This case exists so that refactor cannot land unnoticed.",
+  "cubeQuery": {
+    "measures": [
+      "Orderfacts.linecount"
+    ],
+    "segments": [
+      "Orderfacts.Sales"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Orderfacts.dateordered",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT count(*) AS value FROM c_order o JOIN c_orderline ol ON ol.c_order_id=o.c_order_id WHERE o.ad_client_id=1000026 AND o.processed='Y' AND o.isproposal='N' AND o.issotrx='Y' AND o.dateordered >= DATE '2026-01-01' AND o.dateordered < DATE '2026-09-01'",
+  "tolerance": 0,
+  "securityContext": {
+    "ad_client_id": 1000026,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

@@ -238,7 +238,7 @@ cubes:
         type: time
       - name: isdropship
         title: Transaction is Dropship
-        sql: "CASE WHEN isdropship = 'Y' THEN 'true' WHEN isdropship='N' THEN 'false' END"
+        sql: isdropship
         type: boolean
       - name: dropship_bpartner_id
         title: Dropship ID
@@ -289,7 +289,7 @@ cubes:
         sql: c_paymentterm_name
         type: string
       - name: issotrx
-        sql: "CASE WHEN issotrx = 'Y' THEN 'true' WHEN issotrx='N' THEN 'false' END"
+        sql: issotrx
         type: boolean
       - name: orderage
         title: Order Age
@@ -297,9 +297,9 @@ cubes:
         type: number
     segments:
       - name: Sales
-        sql: "{CUBE}.issotrx = 'true'"
+        sql: "{CUBE}.issotrx = 'Y'"
       - name: Purchase
-        sql: "{CUBE}.issotrx = 'false'"
+        sql: "{CUBE}.issotrx = 'N'"
     pre_aggregations:
       - name: ordersByMonth
         type: rollup

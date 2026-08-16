@@ -1,0 +1,28 @@
+{
+  "name": "Invoicefacts.linenetamt converts currencies, tenant 1000036 (six of them)",
+  "note": "The existing invoicefacts-net case covers tenant 1000026, which invoices ONLY in EUR - so it passed throughout while the measure was arithmetically broken for everyone else. Tenant 1000036 invoices in six currencies (CZK, EUR, HUF, PLN, RON, USD) and its amounts were summed at FACE VALUE:\n\n    before conversion   20,481,105\n    after conversion    13,990,240\n    overstated by        6,490,865   = 46.4%\n\nAlmost all of it was 5.7M Hungarian forint added as though they were euros.\n\nConversion uses iDempiere's own currencyconvert() with the document's own conversion type and date, targeting the currency of the tenant's accounting schema - looked up from c_acctschema, not hardcoded. A literal currency id would be the same defect class as the hardcoded tenant removed from Storage.\n\nThe reference here mirrors ALL the cube's filters. Two earlier attempts did not and looked like model defects: omitting the credit-memo sign flip gave 14,354,333, and omitting the docstatus gate gave 14,028,195. The cube was right both times.",
+  "cubeQuery": {
+    "measures": [
+      "Invoicefacts.linenetamt"
+    ],
+    "timeDimensions": [
+      {
+        "dimension": "Invoicefacts.dateinvoiced",
+        "granularity": "month",
+        "dateRange": [
+          "2026-01-01",
+          "2026-08-31"
+        ]
+      }
+    ]
+  },
+  "referenceSql": "SELECT round(sum(currencyconvert(CASE WHEN charat(dt.docbasetype::character varying,3)::text='C' THEN il.linenetamt*-1 ELSE il.linenetamt END, i.c_currency_id, (SELECT min(acs.c_currency_id) FROM c_acctschema acs WHERE acs.ad_client_id=i.ad_client_id), i.dateinvoiced, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id)),0) AS value FROM c_invoice i JOIN c_invoiceline il ON il.c_invoice_id=i.c_invoice_id JOIN c_doctype dt ON dt.c_doctype_id=i.c_doctype_id WHERE i.ad_client_id=1000036 AND i.docstatus = ANY (ARRAY['CO','CL']) AND i.dateinvoiced >= DATE '2026-01-01' AND i.dateinvoiced < DATE '2026-09-01'",
+  "tolerance": 0.0001,
+  "securityContext": {
+    "ad_client_id": 1000036,
+    "ad_language": "sk_SK",
+    "roles": [
+      "tenant_user"
+    ]
+  }
+}

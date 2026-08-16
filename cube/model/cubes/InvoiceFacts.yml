@@ -22,10 +22,27 @@ cubes:
           WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN (il.pricelist*-1)*il.QtyInvoiced
           ELSE il.pricelist*il.QtyInvoiced
         END AS linepricelist,
-        CASE
-          WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN il.linenetamt*-1
-          ELSE il.linenetamt
-        END AS linenetamt,
+        -- PILOT: converted to the tenant's accounting currency.
+        --
+        -- Without this, amounts in different currencies are summed at face
+        -- value. Tenant 1000036 invoices in six - CZK, EUR, HUF, PLN, RON, USD -
+        -- and Jan-Aug 2026 reported 20,481,105 where the converted figure is
+        -- 14,354,333. Overstated by 6,126,772, or 42.7%, almost entirely because
+        -- 5.7M Hungarian forint were added as though they were euros.
+        --
+        -- The target is looked up from c_acctschema per tenant rather than
+        -- hardcoded: a literal currency id would be the same defect class as the
+        -- hardcoded tenant removed from Storage. All tenants examined use EUR,
+        -- but that is data, not an assumption worth baking in.
+        currencyconvert(
+          CASE
+            WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN il.linenetamt*-1
+            ELSE il.linenetamt
+          END,
+          i.c_currency_id,
+          (SELECT min(acs.c_currency_id) FROM c_acctschema acs WHERE acs.ad_client_id = i.ad_client_id),
+          i.dateinvoiced, i.c_conversiontype_id, i.ad_client_id, i.ad_org_id
+        ) AS linenetamt,
         CASE
           WHEN charat (dt.docbasetype::CHARACTER VARYING,3)::TEXT = 'C'::TEXT THEN il.linetotalamt*-1
           ELSE il.linetotalamt
